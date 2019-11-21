@@ -102,3 +102,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+redditmends/accounts/account_info.py
+
+.vscode/
