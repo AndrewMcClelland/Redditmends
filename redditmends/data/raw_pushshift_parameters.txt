@@ -1,0 +1,85 @@
+sort	Filter	All Endpoints	Sort direction of results ("asc" or "desc")
+sort_type	Filter	All Endpoints	Parameter used for sort
+after	Integer	All Endpoints	Restrict results to those made after this epoch time
+before	Integer	All Endpoints	Restrict results to those made before this epoch time
+after_id	Integer	All Endpoints	Restrict results to those with an id greater than this value.
+before_id	Integer	All Endpoints	Restrict results to those with an id less than this value.
+created_utc	Integer	All Endpoints	Restrict results based on the epoch value given or range of values.
+score	Integer	All Endpoints	Restrict results based on this value or a range of values
+gilded	Integer	All Endpoints	Restrict results based on this number of gildings or range of values.
+edited	Boolean	All Endpoints	Restrict results to those that were edited by the user.
+author	Keyword	All Endpoints	Restrict results to author (use "!" to negate, comma delimited for multiples)
+subreddit	Keyword	All Endpoints	Restrict results to subreddit (use "!" to negate, comma delimited for multiples)
+distinguished	Keyword	All Endpoints	Restrict results made by an admin / moderator / etc.
+retrieved_on	Integer	All Endpoints	Restrict results based on time ingested
+last_updated	Integer	All Endpoints	Restrict results based on time updated
+q	string	All Endpoints	Query term for comments and submissions
+id	Integer	All Endpoints	Restrict results to this id or multiple ids (comma delimited)
+metadata	Utility	All Endpoints	Include metadata search information
+unique	Filter	All Endpoints	Restrict results to only include one of each of specific field
+pretty	Filter	All Endpoints	Prettify the JSON output.
+html_decode	Filter	All Endpoints	HTML decode the body of comments and selftext of submissions.
+permalink	Keyword	All Endpoints	Restrict results to those with this value.
+user_removed	Boolean	All Endpoints	Restrict results based on if a user removed this object.
+mod_removed	Boolean	All Endpoints	Restrict results based on if a moderator removed this object.
+subreddit_type	keyword	All Endpoints	Restrict results based on subreddit type
+author_flair_css_class	keyword	All Endpoints	Restrict results to those with this value.
+author_flair_text	keyword	All Endpoints	Restrict results to those with this value.
+reply_delay	Integer	Comment Endpoint	Restrict based on time elapsed in seconds when comment reply was made
+nest_level	Integer	Comment Endpoint	Restrict based on nest level of comment. 1 is a top level comment
+sub_reply_delay	Integer	Comment Endpoint	Restrict based on number of seconds elapsed from when submission was made
+utc_hour_of_week	Integer	Comment Endpoint	Restrict based on hour of week when comment was made (for aggregations)
+link_id	Integer	Comment Endpoint	Restrict results based on submission id
+parent_id	Integer	Comment Endpoint	Restrict results based on parent id
+over_18	Boolean	Submission Endpoint	Restrict results based on SFW/NSFW
+locked	Boolean	Submission Endpoint	Restrict results based on if submission was locked
+spoiler	Boolean	Submission Endpoint	Restrict results based on if submission is spoiler
+is_video	Boolean	Submission Endpoint	Restrict results based on if submission is video
+is_self	Boolean	Submission Endpoint	Restrict results based on if submission is a self post
+is_original_content	Boolean	Submission Endpoint	Restrict results based on if submission is original content
+is_reddit_media_domain	Boolean	Submission Endpoint	Is Submission hosted on Reddit Media
+whitelist_status	Keyword	Submission Endpoint	Submission whitelist status
+parent_whitelist_status	Keyword	Submission Endpoint	Unknown
+is_crosspostable	Boolean	Submission Endpoint	Restrict results based on if Submission is crosspostable
+can_gild	Boolean	Submission Endpoint	Restrict results based on if Submission is gildable
+suggested_sort	Keyword	Submission Endpoint	Suggested sort for submission
+no_follow	Boolean	Submission Endpoint	Unknown
+send_replies	Boolean	Submission Endpoint	Unknown
+link_flair_css_class	Keyword	Submission Endpoint	Link Flair CSS Class string
+link_flair_text	Keyword	Submission Endpoint	Link Flair Text
+num_crossposts	Integer	Submission Endpoint	Number of times Submission has been crossposted
+title	String	Submission Endpoint	Restrict results based on title
+selftext	String	Submission Endpoint	Restrict results based on selftext
+quarantine	Boolean	Submission Endpoint	Is Submission quarantied
+pinned	Boolean	Submission Endpoint	Is Submission Pinned in Subreddit
+stickied	Boolean	Submission Endpoint	Is Submission Stickied
+category	Keyword	Submission Endpoint	Submission Category
+contest_mode	Boolean	Submission Endpoint	Is Submission a contest
+subreddit_subscribers	Integer	Submission Endpoint	Number of Subscribers to Subreddit when post was made
+url	Keyword	Submission Endpoint	Restrict results based on submission url
+domain	Keyword	Submission Endpoint	Restrict results based on domain of submission
+thumbnail	Keyword	Submission Endpoint	Thumbnail of Submission
+description	String	Subreddit Endpoint	Search full description (sidebar content) of subreddit
+public_description	String	Subreddit Endpoint	Search short description of subreddit
+title	String	Subreddit Endpoint	Search title of subreddit
+header_title	String	Subreddit Endpoint	Search the header of subreddit
+submit_text	String	Subreddit Endpoint	Search the submit text field of subreddit
+subscribers	Integer	Subreddit Endpoint	Restrict based on number of subscribers to subreddit
+comment_score_hide_mins	Integer	Subreddit Endpoint	Restrict based on how long comment scores are hidden in subreddit
+suggested_comment_sort	Keyword	Subreddit Endpoint	Restrict based on the suggested sort for subreddit
+submission_type	Keyword	Subreddit Endpoint	Restrict based on the submission types allowed in subreddit
+spoilers_enabled	Boolean	Subreddit Endpoint	Restrict based on if spoilers are enabled for subreddit
+lang	Keyword	Subreddit Endpoint	Restrict based on the default language of the subreddit
+is_enrolled_in_new_modmail	Boolean	Subreddit Endpoint	Restrict based on if subreddit is enrolled in the new modmail
+audience_target	Keyword	Subreddit Endpoint	Restrict based on the target audience of subreddit
+allow_videos	Boolean	Subreddit Endpoint	Restrict based on if subreddit allows video submissions
+allow_images	Boolean	Subreddit Endpoint	Restrict based on if subreddit allows image submissions
+allow_videogifs	Boolean	Subreddit Endpoint	Restrict based on if subreddit allows video gifs
+advertiser_category	Keyword	Subreddit Endpoint	Restrict based on the advertiser category of subreddit
+hide_ad	Boolean	Subreddit Endpoint	Restrict based on if subreddit hides ads
+subreddit_type	Keyword	Subreddit Endpoint	Restrict based on the subreddit type (Public, Private, User, etc.)
+wiki_enabled	Boolean	Subreddit Endpoint	Restrict based on whether subreddit has wiki enabled
+user_sr_theme_enabled	Boolean	Subreddit Endpoint	(currently unknown what this field is for)
+whitelist_status	Keyword	Subreddit Endpoint	Restrict based on whitelist status of subreddit
+submit_link_label	Keyword	Subreddit Endpoint	Restrict based on the submit label of subreddit
+show_media_preview	Boolean	Subreddit Endpoint	Restrict based on whether subreddit as media preview enabled

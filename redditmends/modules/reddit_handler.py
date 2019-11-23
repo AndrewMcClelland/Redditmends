@@ -18,6 +18,16 @@ class RedditHandler():
 			print("Error connecting to Reddit")
 			raise
 
+	def get_inbox_all(self):
+		messages = self.reddit.inbox.all(limit=None)
+		ret = []
+
+		for message in messages:
+			ret.append(message)
+
+		# Sort by ascending date
+		return ret.reverse()
+
 	def get_inbox_unread(self):
 		unreads = self.reddit.inbox.unread(limit=None)
 		messages = []
@@ -25,4 +35,5 @@ class RedditHandler():
 		for unread in unreads:
 			messages.append(unread)
 
+		# Sort by ascending date
 		return messages.reverse()

@@ -4,6 +4,7 @@ class InboxHandler():
 	def read_inbox(reddit):
 		try:
 			unread_messages = reddit.get_inbox_unread()
+			# unread_messages = reddit.get_inbox_all()
 		except:
 			unread_messages = []
 			raise
@@ -16,3 +17,5 @@ class InboxHandler():
 			body = str(message.body).lower()
 
 		print("Unread messages read = ", message_count)
+
+		return unread_messages
