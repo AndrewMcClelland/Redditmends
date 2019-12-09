@@ -106,3 +106,5 @@ venv.bak/
 redditmends/accounts/account_info.py
 
 .vscode/
+redditmends/accounts/azure_storage_account_info.py
+redditmends/accounts/reddit_account_info.py
