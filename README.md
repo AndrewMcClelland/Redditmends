@@ -8,6 +8,7 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 ### Reddit Manager
 - [x] ~~Setup connection to PRAW~~
 - [x] ~~Implement functionality for calling [pushshift.io] API~~
+- [x] RSS reading for subreddits
 - [ ] Parse bot inbox for private message reccomendation requests
 - [ ] Send message and comment replies with reccomendation
 
