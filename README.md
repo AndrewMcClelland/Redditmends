@@ -13,7 +13,7 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 - [ ] Send message and comment replies with reccomendation
 
 ### Database
-- [x] Setup database to store reddit data that is fed into ML model
+- [x] ~~Setup database to store reddit data that is fed into ML model~~
 
 ### ML Model
 - [ ] Utilize Azure ML services to parse database and offer reccomendations
