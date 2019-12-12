@@ -21,7 +21,8 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 ### Add-Ons
 - [ ] Custom logger
 - [ ] Custom exception handler
-- [ ] Bot stats (number of searches, 
+- [ ] Bot stats (number of searches, accuracy, uptime, etc.)
+- [ ] Requirements file to easily install package dependencies
 
 ### Web App
 - [ ] Front-end UI that uses same backend engine but offers clean website interface
