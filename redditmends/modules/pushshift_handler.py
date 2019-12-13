@@ -22,7 +22,7 @@ class PushshiftHandler():
 		return self.__get_pushshift_api_results(api_endpoint)
 
 	def __get_api_endpoint_url(self, params, api_endpoint_type):
-		endpoint_url =  f"https://api.pushshift.io/reddit/%s/search?" % api_endpoint_type
+		endpoint_url =  f"https://api.pushshift.io/reddit/%s/search/?" % api_endpoint_type
 
 		# params comes in form ["parameter1=value1", "parameter2=value2", etc..]
 		for param in params:
@@ -34,7 +34,7 @@ class PushshiftHandler():
 				print(f"Parameter '{key}'' invalid!!!")
 				exit
 
-			endpoint_url += "&" + param
+			endpoint_url += "&" + key + "=" + value
 
 		return endpoint_url
 
