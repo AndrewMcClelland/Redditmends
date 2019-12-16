@@ -9,3 +9,10 @@ class RedditSubmissionModel():
 		self.flair = submission.get('link_flair_text')
 		self.subreddit = submission.get('subreddit')
 		self.title = submission.get('title')
+		self.body = submission.get('selftext')
+
+	def add_title_keywords(self, keywords):
+		self.title_keywords = keywords
+
+	def add_body_keywords(self, keywords):
+		self.body_keywords = keywords
