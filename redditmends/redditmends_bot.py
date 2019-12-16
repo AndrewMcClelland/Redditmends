@@ -34,30 +34,54 @@ class RedditmendsBot():
 			submission = RedditSubmissionModel()
 			submission.parse_submission_data(sub)
 
-			# try:
-			# 	self.storage_account.insert_submission_entry(submission)
-			# except AzureConflictHttpError as error:
-			# 	print(error)
-			# 	print(f"The submission entry with id =  %s already exists in the database. Continuing..." % submission.id)
-
 			# Add each comment for current submission into database
 			submission_comments = self.pushshift.fetch_comments(params=["link_id=" + submission.id, "size=500"])
 
-			comment_text = []
+			# Get all the comment body values and store as a list
+			texts = list(map(lambda comment: comment["body"], submission_comments))
 
+			# Insert submission title at index 0 and submission body at index 1
+			texts.insert(0, submission.title)
+			texts.insert(1, submission.body)
+
+			# Get keywords for submission title (id = 0) and submission body (id = 1), and all comments
+			keywords = self.text_analytics.get_key_phrases(texts)
+
+			# Insert submission title and body keywords into submission object
+			submission.add_title_keywords(keywords["documents"][0]["keyPhrases"])
+			submission.add_body_keywords(keywords["documents"][1]["keyPhrases"])
+
+			# Insert submission into storage table
+			try:
+				self.storage_account.insert_submission_entry(submission)
+			except TypeError as error:
+				print(error)
+				print(f"The submission object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+			except AzureConflictHttpError as error:
+				print(error)
+				print(f"The submission entry with id =  %s already exists in the database. Continuing..." % submission.id)
+
+			# List of RedditCommentModel() objects
+			comment_list = []
+			id_counter = 2 	# submission title keywords will be index 0 and submission comment keywords will be index 1
 			for com in submission_comments:
 				comment = RedditCommentModel()
 				comment.parse_comment_data(com)
-				comment_text.append(comment.body)
+				comment.add_keywords(keywords["documents"][id_counter]["keyPhrases"])
 
-			self.text_analytics.get_key_phrases(comment_text)
+				comment_list.append(comment)
 
-				# try:
-				# 	self.storage_account.insert_comment_entry(comment)
-				# except AzureConflictHttpError as error:
-				# 	print(error)
-				# 	print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
+				id_counter +=1
 
+			# Insert list of comments into storage table
+			try:
+				self.storage_account.insert_comment_entry(comment_list)
+			except TypeError as error:
+				print(error)
+				print(f"The comment object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+			except AzureConflictHttpError as error:
+				print(error)
+				print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
 
 
 if __name__ == "__main__":

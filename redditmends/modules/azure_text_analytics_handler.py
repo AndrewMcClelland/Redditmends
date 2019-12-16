@@ -69,6 +69,4 @@ class TextAnalyticsHandler():
 	def __send_text_analytics_request(self, url, body):
 		headers = {"Ocp-Apim-Subscription-Key": self.key}
 		response = requests.post(url, headers=headers, json=body)
-		results = response.json()
-		pprint(results)
-		return results
+		return response.json()

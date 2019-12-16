@@ -15,3 +15,6 @@ class RedditCommentModel():
 		self.subreddit = comment.get('subreddit')
 		self.subreddit_id = comment.get('subreddit_id')
 		self.total_awards_received = comment.get('total_awards_received')
+
+	def add_keywords(self, keywords):
+		self.keywords = keywords
