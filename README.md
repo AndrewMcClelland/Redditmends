@@ -1,5 +1,5 @@
 # Redditmends
-A product recommendation engine that uses ML models on real Reddit reviews.
+A product recommendation engine that uses ML models on real Reddit reviews, using Microsoft Azure.
 
 ## Purpose
 Redditmends bot is a reddit bot that will parse Reddit submissions, comments, and private messages for users requesting a reccomendation for a certain product and return reccomendations using ML models based on real reddit data.
