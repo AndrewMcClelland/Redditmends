@@ -2,12 +2,10 @@ import os, uuid
 from azure.cosmosdb.table.tableservice import TableService
 from azure.cosmosdb.table.models import Entity
 
-from accounts.azure_storage_account_info import storage_account
-
 class AzureStorageHandler():
-	def __init__(self):
+	def __init__(self, kv):
 		try:
-			self.table_service = TableService(account_name=storage_account["account_name"], account_key=storage_account["account_key"])
+			self.table_service = TableService(account_name=kv.get_keyvault_secret("storageAccount-name"), account_key=kv.get_keyvault_secret("storageAccount-key"))
 			# Quick start code goes here
 		except Exception as ex:
 			print('Exception:')

@@ -2,6 +2,7 @@ import praw
 from azure.common import AzureConflictHttpError
 from datetime import datetime, timedelta
 
+from modules.keyvault_handler import KeyVaultHandler
 from modules.pushshift_handler import PushshiftHandler
 from modules.reddit_handler import RedditHandler
 from modules.inbox_handler import InboxHandler
@@ -12,15 +13,11 @@ from models.reddit_comment_model import RedditCommentModel
 
 class RedditmendsBot():
 	def __init__(self, username):
-		try:
-			self.bot = accounts[username]
-		except:
-			print("Invalid account username:", username)
-			raise
 
-		self.reddit = RedditHandler(self.bot)
+		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
+		self.reddit = RedditHandler(self.keyvault_handler)
 		self.pushshift_handler = PushshiftHandler()
-		self.storage_account = AzureStorageHandler()
+		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 
 	def run(self, submission_params):
 		# Initializes praw reddit instance
