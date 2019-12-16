@@ -16,9 +16,10 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 - [x] ~~Setup database to store reddit data that is fed into ML model (Azure Storage Table)~~
 
 ### ML Model
-- [ ] Utilize Azure ML services to parse database and offer reccomendations
+- [x] Utilize Azure Cognitive services to extract comments for keywords, sentiment analysis, and identify entities
 
 ### Add-Ons
+- [x] Implement Azure Keyvault to store and access secrets
 - [ ] Custom logger
 - [ ] Custom exception handler
 - [ ] Bot stats (number of searches, accuracy, uptime, etc.)
