@@ -2,8 +2,17 @@ import praw
 
 class RedditHandler():
 
-	def __init__(self, credentials):
-		self.credentials = credentials
+	def __init__(self, kv):
+
+
+		self.credentials = {
+							"appKey" : kv.get_keyvault_secret("reddit-appKey"),
+							"secret" : kv.get_keyvault_secret("reddit-secret"),
+							"username" : kv.get_keyvault_secret("reddit-username"),
+							"password" : kv.get_keyvault_secret("reddit-password"),
+							"userAgent" : kv.get_keyvault_secret("reddit-userAgent")
+							}
+
 		self.reddit = self.connect()
 
 	def connect(self):
