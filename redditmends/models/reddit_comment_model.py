@@ -18,3 +18,6 @@ class RedditCommentModel():
 
 	def add_keywords(self, keywords):
 		self.keywords = keywords
+
+	def add_sentiment(self, sentiment):
+		self.sentiment = sentiment

@@ -25,6 +25,9 @@ class AzureStorageHandler():
 		submission.title_keywords = ','.join(map(str, entry.title_keywords))
 		submission.body_keywords = ','.join(map(str, entry.body_keywords))
 
+		submission.title_sentiment = entry.title_sentiment
+		submission.body_sentiment = entry.body_sentiment
+
 		self.table_service.insert_entity('submissions', submission)
 
 	def insert_comment_entry(self, entries):
@@ -44,6 +47,7 @@ class AzureStorageHandler():
 			comment.subreddit = entry.subreddit
 			comment.subreddit_id = entry.subreddit_id
 			comment.total_awards_received = entry.total_awards_received
+			comment.sentiment = entry.sentiment
 
 			# Flatten list of keywords into comma separated string
 			comment.keywords = ','.join(map(str, entry.keywords))
@@ -53,9 +57,17 @@ class AzureStorageHandler():
 	def insert_recommendation_entry(self, entry):
 		recommendation = Entity()
 
-		recommendation.PartitionKey = entry.subreddit
-		recommendation.RowKey = entry.id
-		recommendation.flair = entry.flair
-		recommendation.title = entry.title
+		recommendation.PartitionKey = entry.keyword
+		recommendation.RowKey = entry.keyword
+		recommendation.post_id = entry.post_id
+		recommendation.comment_id = entry.comment_id
+		recommendation.query_word = entry.query_word
+		recommendation.sentiment = entry.sentiment
 
 		self.table_service.insert_entity('recommendations', recommendation)
+
+	def get_entry(self, table, partition_key, row_key):
+		return self.table_service.get_entity('recommendations', partition_key, row_key)
+
+	def delete_entry(self, table, partition_key, row_key):
+		return self.table_service.delete_entity('recommendations', partition_key, row_key)
