@@ -1,6 +1,7 @@
 import os, uuid
 from azure.cosmosdb.table.tableservice import TableService
 from azure.cosmosdb.table.models import Entity
+from azure.common import AzureConflictHttpError
 
 class AzureStorageHandler():
 	def __init__(self, kv):
@@ -54,17 +55,34 @@ class AzureStorageHandler():
 
 			self.table_service.insert_entity('comments', comment)
 
-	def insert_recommendation_entry(self, entry):
-		recommendation = Entity()
+	def insert_recommendation_entry(self, entries):
 
-		recommendation.PartitionKey = entry.keyword
-		recommendation.RowKey = entry.keyword
-		recommendation.post_id = entry.post_id
-		recommendation.comment_id = entry.comment_id
-		recommendation.query_word = entry.query_word
-		recommendation.sentiment = entry.sentiment
+		for entry in entries:
+			recommendation = Entity()
 
-		self.table_service.insert_entity('recommendations', recommendation)
+			recommendation.PartitionKey = entry.keyword
+			recommendation.RowKey = entry.keyword
+			recommendation.post_id = ','.join(map(str, entry.post_id))
+			recommendation.comment_id = ','.join(map(str, entry.comment_id))
+			recommendation.query_word = ','.join(map(str, entry.query_word))
+			recommendation.sentiment = entry.sentiment
+			recommendation.count = entry.count
+
+			try:
+				self.table_service.insert_entity('recommendations', recommendation)
+			except AzureConflictHttpError as error:
+				print(error)
+				print(f"The recommendation entry with keyword =  %s already exists in the database. Updating..." % recommendation.PartitionKey)
+
+				# Update existing entry with duplicate entry attributes
+				existing_recommendation = AzureStorageHandler.get_entry(self, "recommendations", recommendation.PartitionKey, recommendation.RowKey)
+				recommendation.post_id += "," + existing_recommendation["post_id"]
+				recommendation.comment_id += "," + existing_recommendation["comment_id"]
+				recommendation.query_word += "," + existing_recommendation["query_word"]
+				recommendation.sentiment = ((float(existing_recommendation["sentiment"]) * int(existing_recommendation["count"])) + (recommendation.sentiment * recommendation.count)) / (int(existing_recommendation["count"]) + recommendation.count)
+				recommendation.count = int(recommendation.count) + int(existing_recommendation["count"])
+
+				self.table_service.update_entity('recommendations', recommendation)
 
 	def get_entry(self, table, partition_key, row_key):
 		return self.table_service.get_entity('recommendations', partition_key, row_key)

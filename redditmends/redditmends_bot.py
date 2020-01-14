@@ -1,8 +1,9 @@
 import praw
-from azure.common import AzureConflictHttpError
-from datetime import datetime, timedelta
 import collections
+from datetime import datetime, timedelta
+from azure.common import AzureConflictHttpError
 
+# Local imports
 from modules.azure_keyvault_handler import KeyVaultHandler
 from modules.azure_text_analytics_handler import TextAnalyticsHandler
 from modules.azure_storage_handler import AzureStorageHandler
@@ -31,7 +32,7 @@ class RedditmendsBot():
 
 		#TODO: fix queries for submissions (flair, etc.) --> make sure it's matching up
 		#TODO: only fetch submissions that we haven't seen yet
-		submission_params = ["subreddit=BuyItForLife", "title=[Request]", "size=500", "title=" + search_term]
+		submission_params = ["subreddit=BuyItForLife", "title=[Request]", "size=3", "title=" + search_term]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
 		for sub in submissions:
@@ -40,7 +41,7 @@ class RedditmendsBot():
 			submission.parse_submission_data(sub)
 
 			# Add each comment for current submission into database
-			submission_comments = self.pushshift.fetch_comments(params=["link_id=" + submission.id, "size=500"])
+			submission_comments = self.pushshift.fetch_comments(params=["link_id=" + submission.id, "size=10"])
 
 			# Get all the comment body values and store as a list
 			texts = list(map(lambda comment: comment["body"], submission_comments))
@@ -52,6 +53,13 @@ class RedditmendsBot():
 			# Get keywords/sentiments for submission title (id = 0) and submission body (id = 1), and all comments
 			keywords = self.text_analytics.get_key_phrases(texts)
 			sentiments = self.text_analytics.get_sentiment(texts)
+
+			# Convert keywords to lower case to avoid duplicates due to case insensitivity of table storage
+			for entry in keywords["documents"]:
+				word_count = 0
+				for word in entry["keyPhrases"]:
+					keywords["documents"][int(entry["id"])]["keyPhrases"][word_count] = word.lower()
+					word_count += 1
 
 			# Insert submission title and body keywords into submission object
 			submission.add_title_keywords(keywords["documents"][0]["keyPhrases"])
@@ -114,16 +122,11 @@ class RedditmendsBot():
 		recommendation_list = []
 		for keyword in recommendation_dict:
 			curr_recom = RecommendationModel(keyword)
-			keyword_exists = self.storage_account.get_entry("recommendations", keyword, keyword)
-			if(keyword_exists != null):	# keyword already exists in storage, so update it's values
-				# UPDATE ENTITY INSTEAD???
-				self.storage_account.delete_entry("recommendations", keyword, keyword)
-
-			else: # keyword doesn't exist
-				curr_recom.add_sentiment(keyword["sentiment"])
-				curr_recom.add_query_keyword(keyword["query_word"])
-				curr_recom.add_post_id(keyword["post_id"])
-				curr_recom.add_count(keyword["count"])
+			curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
+			curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
+			curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
+			curr_recom.add_comment_id(recommendation_dict[keyword]["comment_id"])
+			curr_recom.add_count(recommendation_dict[keyword]["count"])
 
 			recommendation_list.append(curr_recom)
 
@@ -133,9 +136,6 @@ class RedditmendsBot():
 		except TypeError as error:
 			print(error)
 			print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
-		except AzureConflictHttpError as error:
-			print(error)
-			print(f"The recommendation entry with id =  %s already exists in the database. Continuing..." % comment.id)
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
