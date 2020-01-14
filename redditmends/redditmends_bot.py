@@ -2,6 +2,7 @@ import praw
 import collections
 from datetime import datetime, timedelta
 from azure.common import AzureConflictHttpError
+from azure.common import AzureMissingResourceHttpError
 
 # Local imports
 from modules.azure_keyvault_handler import KeyVaultHandler
@@ -13,9 +14,14 @@ from modules.reddit_inbox_handler import InboxHandler
 from models.reddit_submission_model import RedditSubmissionModel
 from models.reddit_comment_model import RedditCommentModel
 from models.recommendation_model import RecommendationModel
+from models.submission_date_model import SubmissionDateModel
 
 class RedditmendsBot():
 	def __init__(self, username):
+
+		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "3", "sort": "asc"}
+		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
+		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
 		self.reddit = RedditHandler(self.keyvault_handler)
@@ -30,9 +36,17 @@ class RedditmendsBot():
 
 		recommendation_dict = collections.defaultdict(dict)
 
-		#TODO: fix queries for submissions (flair, etc.) --> make sure it's matching up
-		#TODO: only fetch submissions that we haven't seen yet
-		submission_params = ["subreddit=BuyItForLife", "title=[Request]", "size=3", "title=" + search_term]
+		# If another search occurred with same subreddit and search_term, get the most recent stored submission from that search and only retrieve submissions posted after that date
+		try:
+			newest_stored_sub_date = self.storage_account.get_entry("mostrecentsubdate", partition_key=self.submission_search_params["subreddit"], row_key=self.submission_search_params["title"])
+			newest_stored_sub_date = newest_stored_sub_date["created_utc"]
+		# If this search is new, then just set the "after" date query to 0
+		except AzureMissingResourceHttpError as error:
+			print(error)
+			print("The mostrecentsubdate entry with subreddit =  '{0}' and title = '{1}' does not exist in the database. Setting newest created_utc to 0...".format(self.submission_search_params["subreddit"], self.submission_search_params["title"]))
+			newest_stored_sub_date = 0
+
+		submission_params = ["subreddit=" + self.submission_search_params["subreddit"], "title=" + self.submission_search_params["title"], "size=" + self.submission_search_params["size"], "sort=" + self.submission_search_params["sort"], "title=" + search_term, "after=" + str(newest_stored_sub_date), "fields=" + ",".join(map(str, self.comment_search_fields))]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
 		for sub in submissions:
@@ -41,14 +55,17 @@ class RedditmendsBot():
 			submission.parse_submission_data(sub)
 
 			# Add each comment for current submission into database
-			submission_comments = self.pushshift.fetch_comments(params=["link_id=" + submission.id, "size=10"])
+			submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
+			submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
 
 			# Get all the comment body values and store as a list
 			texts = list(map(lambda comment: comment["body"], submission_comments))
 
 			# Insert submission title at index 0 and submission body at index 1
 			texts.insert(0, submission.title)
-			texts.insert(1, submission.body)
+			sub_body_is_empty = submission.body == ""
+			if not sub_body_is_empty:
+				texts.insert(1, submission.body)
 
 			# Get keywords/sentiments for submission title (id = 0) and submission body (id = 1), and all comments
 			keywords = self.text_analytics.get_key_phrases(texts)
@@ -63,9 +80,10 @@ class RedditmendsBot():
 
 			# Insert submission title and body keywords into submission object
 			submission.add_title_keywords(keywords["documents"][0]["keyPhrases"])
-			submission.add_body_keywords(keywords["documents"][1]["keyPhrases"])
 			submission.add_title_sentiment(sentiments["documents"][0]["score"])
-			submission.add_body_sentiment(sentiments["documents"][0]["score"])
+			if not sub_body_is_empty:
+				submission.add_body_keywords(keywords["documents"][1]["keyPhrases"])
+				submission.add_body_sentiment(sentiments["documents"][1]["score"])
 
 			# Insert submission into storage table
 			try:
@@ -79,7 +97,7 @@ class RedditmendsBot():
 
 			# List of RedditCommentModel() objects
 			comment_list = []
-			id_counter = 2 	# submission title keywords will be index 0 and submission comment keywords will be index 1
+			id_counter = 1 if sub_body_is_empty else 2 	# submission title keywords will be index 0 and submission comment keywords will be index 1 (set counter to 1 if no body)
 			for com in submission_comments:
 				# Handle comments
 				comment = RedditCommentModel()
@@ -136,6 +154,14 @@ class RedditmendsBot():
 		except TypeError as error:
 			print(error)
 			print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+
+		# Update 'mostrecentsubdate' entry for current subreddit/query search
+		newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
+		try:
+			self.storage_account.insert_sub_date_entry(newest_sub_date)
+		except TypeError as error:
+			print(error)
+			print(f"The mostrecentsubdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
