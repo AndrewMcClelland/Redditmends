@@ -1,7 +1,6 @@
 #https://docs.microsoft.com/en-us/azure/cognitive-services/text-analytics/quickstarts/python
 
 import requests
-from pprint import pprint
 
 class TextAnalyticsHandler():
 	def __init__(self, kv):
@@ -25,15 +24,19 @@ class TextAnalyticsHandler():
 		api_url = self.endpoint + "/text/analytics/v2.1/sentiment"
 
 		# Need to get languages for texts to hit keyphrase endpoint
-		texts_langs = self.get_languages(texts)
+		# texts_langs = self.get_languages(texts)
 
 		documents = {"documents": []}
-		for text in texts_langs["documents"]:
-			text_id = text["id"]
-			text_string = texts[int(text_id)]
-			language = text["detectedLanguages"][0]["iso6391Name"]
+		count = 0
+		for text in texts:
+			text_id = str(count)
+			text_string = text
+			# language = text["detectedLanguages"][0]["iso6391Name"]
+			language = "en"
 			doc = {"id": f"{text_id}", "language": f"{language}", "text": f"{text_string}"}
 			documents["documents"].append(doc)
+
+			count += 1
 
 		return self.__send_text_analytics_request(api_url, documents)
 
@@ -41,15 +44,19 @@ class TextAnalyticsHandler():
 		api_url = self.endpoint + "/text/analytics/v2.1/keyphrases"
 
 		# Need to get languages for texts to hit keyphrase endpoint
-		texts_langs = self.get_languages(texts)
+		# texts_langs = self.get_languages(texts)
 
 		documents = {"documents": []}
-		for text in texts_langs["documents"]:
-			text_id = text["id"]
-			text_string = texts[int(text_id)]
-			language = text["detectedLanguages"][0]["iso6391Name"]
+		count = 0
+		for text in texts:
+			text_id = str(count)
+			text_string = text
+			# language = text["detectedLanguages"][0]["iso6391Name"]
+			language = "en"
 			doc = {"id": f"{text_id}", "language": f"{language}", "text": f"{text_string}"}
 			documents["documents"].append(doc)
+
+			count += 1
 
 		return self.__send_text_analytics_request(api_url, documents)
 
