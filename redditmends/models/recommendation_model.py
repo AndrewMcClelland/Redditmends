@@ -14,5 +14,8 @@ class RecommendationModel():
 	def add_post_id(self, post_id):
 		self.post_id = post_id
 
+	def add_comment_id(self, comment_id):
+		self.comment_id = comment_id
+
 	def add_count(self, count):
 		self.count = count
