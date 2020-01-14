@@ -16,3 +16,9 @@ class RedditSubmissionModel():
 
 	def add_body_keywords(self, keywords):
 		self.body_keywords = keywords
+
+	def add_title_sentiment(self, sentiment):
+		self.title_sentiment = sentiment
+
+	def add_body_sentiment(self, sentiment):
+		self.body_sentiment = sentiment
