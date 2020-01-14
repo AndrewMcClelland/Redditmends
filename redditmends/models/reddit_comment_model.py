@@ -5,7 +5,8 @@ class RedditCommentModel():
 	def parse_comment_data(self, comment):
 		self.author = comment.get('author')
 		self.body = comment.get('body')
-		self.post_date = datetime.fromtimestamp(comment['created_utc']).strftime('%c') if comment.get('created_utc') else None
+		# self.post_date = datetime.fromtimestamp(comment['created_utc']).strftime('%c') if comment.get('created_utc') else None
+		self.created_utc = comment.get("created_utc")
 		self.link_id = comment.get('link_id')
 		self.id = comment.get('id')
 		self.num_comments = comment.get('num_comments')
