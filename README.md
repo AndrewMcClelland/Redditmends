@@ -20,8 +20,8 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 
 ### Add-Ons
 - [x] ~~Implement Azure Keyvault to store and access secrets~~
-- [ ] Custom logger
-- [ ] Custom exception handler
+- [ ] Custom logger (Azure Log Analytics)
+- [ ] Custom exception handler and trace events (Azure App Insights)
 - [ ] Bot stats (number of searches, accuracy, uptime, etc.)
 - [ ] Requirements file to easily install package dependencies
 
