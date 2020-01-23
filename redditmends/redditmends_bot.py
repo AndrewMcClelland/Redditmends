@@ -9,12 +9,14 @@ from modules.azure_keyvault_handler import KeyVaultHandler
 from modules.azure_text_analytics_handler import TextAnalyticsHandler
 from modules.azure_storage_handler import AzureStorageHandler
 from modules.pushshift_handler import PushshiftHandler
-from modules.reddit_praw_handler import RedditHandler
+from modules.reddit_handler import RedditHandler
+from modules.reddit_praw_handler import RedditPrawHandler
 from modules.reddit_inbox_handler import InboxHandler
 from models.reddit_submission_model import RedditSubmissionModel
 from models.reddit_comment_model import RedditCommentModel
 from models.recommendation_model import RecommendationModel
 from models.submission_date_model import SubmissionDateModel
+from models.redditmends_result_model import RedditmendsResultModel
 
 class RedditmendsBot():
 	def __init__(self, username):
@@ -24,7 +26,7 @@ class RedditmendsBot():
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
-		self.reddit = RedditHandler(self.keyvault_handler)
+		self.reddit_praw = RedditPrawHandler(self.keyvault_handler)
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
@@ -49,6 +51,10 @@ class RedditmendsBot():
 		submission_params = ["subreddit=" + self.submission_search_params["subreddit"], "title=" + self.submission_search_params["title"], "size=" + self.submission_search_params["size"], "sort=" + self.submission_search_params["sort"], "title=" + search_term, "after=" + str(newest_stored_sub_date), "fields=" + ",".join(map(str, self.comment_search_fields))]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
+		# Setting up top comment score and top comment array that meet that score
+		top_comment_score = -1
+		top_comments = []
+
 		for sub in submissions:
 			# Add submission entry for database
 			submission = RedditSubmissionModel()
@@ -57,6 +63,10 @@ class RedditmendsBot():
 			# Add each comment for current submission into database
 			submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
 			submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
+
+			praw_comments = self.reddit_praw.get_submission_comments(submission.id)
+
+			#TODO Parse comments in a PRAW model
 
 			# Get all the comment body values and store as a list
 			texts = list(map(lambda comment: comment["body"], submission_comments))
@@ -126,6 +136,14 @@ class RedditmendsBot():
 
 				id_counter +=1
 
+			# Get largest voting for comments and select all comments that have that vote
+			curr_top_comment_score = max(comment.score for comment in comment_list)
+			curr_top_comments = list(filter(lambda comment: comment.count == curr_top_comment_score, comment_list))
+			if(curr_top_comment_score > top_comment_score):
+				top_comments = curr_top_comments
+			elif(curr_top_comment_score == top_comment_score):
+				top_comments.append(curr_top_comments)
+
 			# Insert list of comments into storage table
 			try:
 				self.storage_account.insert_comment_entry(comment_list)
@@ -148,6 +166,14 @@ class RedditmendsBot():
 
 			recommendation_list.append(curr_recom)
 
+		# Get largest count for keywords and select all keywords that have that count
+		top_keyword_count = max(word.count for word in recommendation_list)
+		top_keywords = list(filter(lambda x: x.count == top_keyword_count, recommendation_list))
+
+		# Create result object with relevant data
+		self.result = RedditmendsResultModel()
+		self.result.parse_result_data(top_comments, top_comment_score, top_keywords, top_keyword_count)
+
 		# Insert recommendations into storage table
 		try:
 			self.storage_account.insert_recommendation_entry(recommendation_list)
@@ -161,7 +187,7 @@ class RedditmendsBot():
 			self.storage_account.insert_sub_date_entry(newest_sub_date)
 		except TypeError as error:
 			print(error)
-			print(f"The mostrecentsubdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+			print(f"The most recent subdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
