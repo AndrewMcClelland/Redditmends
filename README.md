@@ -10,7 +10,7 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 - [x] ~~Implement functionality for calling [pushshift.io] API~~
 - [ ] RSS reading for subreddits
 - [ ] Parse bot inbox for private message reccomendation requests
-- [ ] Send message and comment replies with reccomendation
+- [ ] Send message and comment replies with recommendations
 
 ### Database
 - [x] ~~Setup database to store reddit data that is fed into ML model (Azure Storage Table)~~

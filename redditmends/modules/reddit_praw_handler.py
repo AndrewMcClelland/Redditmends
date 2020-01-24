@@ -1,6 +1,6 @@
 import praw
 
-class RedditHandler():
+class RedditPrawHandler():
 
 	def __init__(self, kv):
 
@@ -26,6 +26,10 @@ class RedditHandler():
 		except:
 			print("Error connecting to Reddit")
 			raise
+
+	def get_submission_comments(self, submission_id):
+		return self.reddit.submission(id = submission_id).comments
+
 
 	def get_inbox_all(self):
 		messages = self.reddit.inbox.all(limit=None)
