@@ -31,6 +31,8 @@ class RedditmendsBot():
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
 
+		self.write_storage_enabled = False
+
 	def run(self, search_term):
 		# Initializes praw reddit instance
 		self.start_time = datetime.now()
@@ -51,6 +53,9 @@ class RedditmendsBot():
 		submission_params = ["subreddit=" + self.submission_search_params["subreddit"], "title=" + self.submission_search_params["title"], "size=" + self.submission_search_params["size"], "sort=" + self.submission_search_params["sort"], "title=" + search_term, "after=" + str(newest_stored_sub_date), "fields=" + ",".join(map(str, self.comment_search_fields))]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
+		num_submissions = len(submissions)
+		num_comments = 0
+
 		# Setting up top comment score and top comment array that meet that score
 		top_comment_score = -1
 		top_comments = []
@@ -63,6 +68,8 @@ class RedditmendsBot():
 			# Add each comment for current submission into database
 			submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
 			submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
+
+			num_comments += len(submission_comments)
 
 			praw_comments = self.reddit_praw.get_submission_comments(submission.id)
 
@@ -96,14 +103,15 @@ class RedditmendsBot():
 				submission.add_body_sentiment(sentiments["documents"][1]["score"])
 
 			# Insert submission into storage table
-			try:
-				self.storage_account.insert_submission_entry(submission)
-			except TypeError as error:
-				print(error)
-				print(f"The submission object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
-			except AzureConflictHttpError as error:
-				print(error)
-				print(f"The submission entry with id =  %s already exists in the database. Continuing..." % submission.id)
+			if(self.write_storage_enabled):
+				try:
+					self.storage_account.insert_submission_entry(submission)
+				except TypeError as error:
+					print(error)
+					print(f"The submission object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+				except AzureConflictHttpError as error:
+					print(error)
+					print(f"The submission entry with id =  %s already exists in the database. Continuing..." % submission.id)
 
 			# List of RedditCommentModel() objects
 			comment_list = []
@@ -138,21 +146,23 @@ class RedditmendsBot():
 
 			# Get largest voting for comments and select all comments that have that vote
 			curr_top_comment_score = max(comment.score for comment in comment_list)
-			curr_top_comments = list(filter(lambda comment: comment.count == curr_top_comment_score, comment_list))
+			curr_top_comments = list(filter(lambda comment: comment.score == curr_top_comment_score, comment_list))
 			if(curr_top_comment_score > top_comment_score):
 				top_comments = curr_top_comments
+				top_comment_score = curr_top_comment_score
 			elif(curr_top_comment_score == top_comment_score):
 				top_comments.append(curr_top_comments)
 
 			# Insert list of comments into storage table
-			try:
-				self.storage_account.insert_comment_entry(comment_list)
-			except TypeError as error:
-				print(error)
-				print(f"The comment object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
-			except AzureConflictHttpError as error:
-				print(error)
-				print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
+			if(self.write_storage_enabled):
+				try:
+					self.storage_account.insert_comment_entry(comment_list)
+				except TypeError as error:
+					print(error)
+					print(f"The comment object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+				except AzureConflictHttpError as error:
+					print(error)
+					print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
 
 		# Create list of recommendations
 		recommendation_list = []
@@ -169,29 +179,32 @@ class RedditmendsBot():
 		# Get largest count for keywords and select all keywords that have that count
 		top_keyword_count = max(word.count for word in recommendation_list)
 		top_keywords = list(filter(lambda x: x.count == top_keyword_count, recommendation_list))
+		num_unique_keywords = len(recommendation_list)
 
 		# Create result object with relevant data
 		self.result = RedditmendsResultModel()
-		self.result.parse_result_data(top_comments, top_comment_score, top_keywords, top_keyword_count)
+		self.result.parse_result_data(search_term, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_count)
 
 		# Insert recommendations into storage table
-		try:
-			self.storage_account.insert_recommendation_entry(recommendation_list)
-		except TypeError as error:
-			print(error)
-			print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+		if(self.write_storage_enabled):
+			try:
+				self.storage_account.insert_recommendation_entry(recommendation_list)
+			except TypeError as error:
+				print(error)
+				print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
 		# Update 'mostrecentsubdate' entry for current subreddit/query search
-		newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
-		try:
-			self.storage_account.insert_sub_date_entry(newest_sub_date)
-		except TypeError as error:
-			print(error)
-			print(f"The most recent subdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+		if(self.write_storage_enabled):
+			newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
+			try:
+				self.storage_account.insert_sub_date_entry(newest_sub_date)
+			except TypeError as error:
+				print(error)
+				print(f"The most recent subdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
 	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
 	bot.run(search_term = "blanket")
-	# bot.run(["ids=duv1bf"])
+	print(bot.result)
