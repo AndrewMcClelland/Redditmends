@@ -35,7 +35,7 @@ class RedditmendsBot():
 
 	def run(self, search_term):
 		# Initializes praw reddit instance
-		self.start_time = datetime.now()
+		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
 
 		recommendation_dict = collections.defaultdict(dict)
@@ -181,10 +181,6 @@ class RedditmendsBot():
 		top_keywords = list(filter(lambda x: x.count == top_keyword_count, recommendation_list))
 		num_unique_keywords = len(recommendation_list)
 
-		# Create result object with relevant data
-		self.result = RedditmendsResultModel()
-		self.result.parse_result_data(search_term, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_count)
-
 		# Insert recommendations into storage table
 		if(self.write_storage_enabled):
 			try:
@@ -201,6 +197,13 @@ class RedditmendsBot():
 			except TypeError as error:
 				print(error)
 				print(f"The most recent subdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
+
+		# Get runtime
+		runtime = datetime.now() - start_time
+
+		# Create result object with relevant data
+		self.result = RedditmendsResultModel()
+		self.result.parse_result_data(search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_count)
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")

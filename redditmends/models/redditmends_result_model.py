@@ -1,7 +1,8 @@
 class RedditmendsResultModel():
 
-	def parse_result_data(self, search_term, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keywords_count):
+	def parse_result_data(self, search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keywords_count):
 		self.search_term = search_term
+		self.runtime = runtime
 		self.num_submissions = num_submissions
 		self.num_comments = num_comments
 		self.num_unique_keywords = num_unique_keywords
@@ -21,14 +22,16 @@ class RedditmendsResultModel():
 			top_keywords_string += "'{0}',".format(keyword.keyword)
 
 		return """\n\nRedditmends result for search_term: '{0}'\n
-					Number of submissions parsed = \t{1}\n
-					Number of comments parsed = \t{2}\n
-					Number of unique keywords = \t{3}\n
-					Highest voted comment scores = \t{4}\n
-					Highest voted comments found = '\t{5}'\n
-					Highest common keyword count = \t{6}\n
-					Most common keywords = \t{7}\n\n""".format(
+					Runtime = \t{1}\n
+					Number of submissions parsed = \t{2}\n
+					Number of comments parsed = \t{3}\n
+					Number of unique keywords = \t{4}\n
+					Highest voted comment scores = \t{5}\n
+					Highest voted comments found = '\t{6}'\n
+					Highest common keyword count = \t{7}\n
+					Most common keywords = \t{8}\n\n""".format(
 						self.search_term,
+						self.runtime,
 						self.num_submissions,
 						self.num_comments,
 						self.num_unique_keywords,
