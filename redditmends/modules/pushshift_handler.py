@@ -2,7 +2,6 @@ import requests
 import csv
 
 from data.pushshift_api_params import pushshift_api_parameters
-import data.parse_pushshift_data
 
 class PushshiftHandler():
 
@@ -30,8 +29,8 @@ class PushshiftHandler():
 			key = split_param[0].lower()
 			value = split_param[1].lower()
 
-			if(key not in pushshift_api_parameters or (pushshift_api_parameters[key][0] != "All Endpoints" and pushshift_api_parameters[key][0] != api_endpoint_type)):
-				print(f"Parameter '{key}'' invalid!!!")
+			if(key not in pushshift_api_parameters[api_endpoint_type]):
+				print(f"Pushshift search parameter '{key}' is invalid for endpoint type '{api_endpoint_type}'!")
 				exit
 
 			endpoint_url += "&" + key + "=" + value
