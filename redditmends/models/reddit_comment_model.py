@@ -22,3 +22,17 @@ class RedditCommentModel():
 
 	def add_sentiment(self, sentiment):
 		self.sentiment = sentiment
+
+	def __str__(self):
+		top_keywords_string = ""
+		for keyword in self.keywords:
+			top_keywords_string += "'{0}',".format(keyword.keyword)
+
+		return "Comment id = {0} posted at {1} by {2}\nScore = {3}, sentiment = {4}, and relevant keywords: {5}\n'{6}'".format(
+			self.id,
+			datetime.fromtimestamp(self.created_utc).strftime('%c'),
+			self.author,
+			self.score,
+			self.sentiment,
+			top_keywords_string,
+			self.body)
