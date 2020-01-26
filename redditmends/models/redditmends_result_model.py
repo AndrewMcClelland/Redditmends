@@ -1,3 +1,5 @@
+from datetime import datetime
+
 class RedditmendsResultModel():
 
 	def parse_result_data(self, search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keywords_count):
@@ -16,7 +18,13 @@ class RedditmendsResultModel():
 		top_comments_string = ""
 		top_keywords_string = ""
 		for comment in self.top_comments:
-			top_comments_string += "{0}':\t'{1}\n".format(comment.author, comment.body)
+			top_comments_string += "Comment id = {0} posted at {1} by {2}\nScore = {3} and sentiment = {4}\n'{5}'\n".format(
+										comment.id,
+										datetime.fromtimestamp(comment.created_utc).strftime('%c'),
+										comment.author,
+										comment.score,
+										comment.sentiment,
+										comment.body)
 
 		for keyword in self.top_keywords:
 			top_keywords_string += "'{0}',".format(keyword.keyword)
