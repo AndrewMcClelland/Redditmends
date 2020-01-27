@@ -39,7 +39,7 @@ class PushshiftHandler():
 
 	def __get_pushshift_api_results(self, endpoint_url):
 		try:
-			pushshift_results = requests.get(endpoint_url, headers = {'User-Agent': "redditmends_bot by /u/adoublemc"}, timeout=10)
+			pushshift_results = requests.get(endpoint_url, headers = {'User-Agent': "redditmends_bot by /u/adoublemc"}, timeout = None)
 			if(pushshift_results.status_code != 200):
 				print("WARNING: did not receive results for GET on url: ", endpoint_url)
 				return []
