@@ -1,6 +1,7 @@
 import praw
 import collections
 from datetime import datetime, timedelta
+from enum import Enum
 from azure.common import AzureConflictHttpError
 from azure.common import AzureMissingResourceHttpError
 
@@ -10,7 +11,7 @@ from modules.azure_text_analytics_handler import TextAnalyticsHandler
 from modules.azure_storage_handler import AzureStorageHandler
 from modules.pushshift_handler import PushshiftHandler
 from modules.reddit_handler import RedditHandler
-from modules.reddit_praw_handler import RedditPrawHandler
+from modules.praw_handler import PrawHandler
 from modules.reddit_inbox_handler import InboxHandler
 from models.reddit_submission_model import RedditSubmissionModel
 from models.reddit_comment_model import RedditCommentModel
@@ -18,22 +19,27 @@ from models.recommendation_model import RecommendationModel
 from models.submission_date_model import SubmissionDateModel
 from models.redditmends_result_model import RedditmendsResultModel
 
+
+class CommentQueryMethod(Enum):
+	PRAW = 1
+	PUSHSHIFT = 2
+
 class RedditmendsBot():
 	def __init__(self, username):
 
-		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "3", "sort": "asc"}
+		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "1", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
-		self.reddit_praw = RedditPrawHandler(self.keyvault_handler)
+		self.praw = PrawHandler(self.keyvault_handler)
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
 
 		self.write_storage_enabled = False
 
-	def run(self, search_term):
+	def run(self, search_term, comment_query_method):
 		# Initializes praw reddit instance
 		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
@@ -65,15 +71,14 @@ class RedditmendsBot():
 			submission = RedditSubmissionModel()
 			submission.parse_submission_data(sub)
 
-			# Add each comment for current submission into database
-			submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
-			submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
+			# Get comments for current looped subreddit using selected query method (PRAW [Reddit API] vs Pushshift API)
+			if(comment_query_method == CommentQueryMethod.PRAW):
+				submission_comments = self.praw.get_submission_comments(submission.id)
+			else: # CommentQueryMethod.Pushshift
+				submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
+				submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
 
 			num_comments += len(submission_comments)
-
-			praw_comments = self.reddit_praw.get_submission_comments(submission.id)
-
-			#TODO Parse comments in a PRAW model
 
 			# Get all the comment body values and store as a list
 			texts = list(map(lambda comment: comment["body"], submission_comments))
@@ -145,13 +150,14 @@ class RedditmendsBot():
 				id_counter +=1
 
 			# Get largest voting for comments and select all comments that have that vote
-			curr_top_comment_score = max(comment.score for comment in comment_list)
-			curr_top_comments = list(filter(lambda comment: comment.score == curr_top_comment_score, comment_list))
-			if(curr_top_comment_score > top_comment_score):
-				top_comments = curr_top_comments
-				top_comment_score = curr_top_comment_score
-			elif(curr_top_comment_score == top_comment_score):
-				top_comments.append(curr_top_comments)
+			if(len(comment_list) > 0):
+				curr_top_comment_score = max(comment.score for comment in comment_list)
+				curr_top_comments = list(filter(lambda comment: comment.score == curr_top_comment_score, comment_list))
+				if(curr_top_comment_score > top_comment_score):
+					top_comments = curr_top_comments
+					top_comment_score = curr_top_comment_score
+				elif(curr_top_comment_score == top_comment_score):
+					top_comments.append(curr_top_comments)
 
 			# Insert list of comments into storage table
 			if(self.write_storage_enabled):
@@ -209,5 +215,5 @@ if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
 	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
-	bot.run(search_term = "blanket")
+	bot.run(search_term = "shoes", comment_query_method = CommentQueryMethod.PRAW)
 	print(bot.result)
