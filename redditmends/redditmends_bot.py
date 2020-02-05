@@ -1,4 +1,5 @@
 import praw
+import nltk
 import collections
 from datetime import datetime, timedelta
 from enum import Enum
@@ -13,6 +14,7 @@ from modules.pushshift_handler import PushshiftHandler
 from modules.reddit_handler import RedditHandler
 from modules.praw_handler import PrawHandler
 from modules.reddit_inbox_handler import InboxHandler
+from modules.marker_api_handler import MarkerAPIHandler
 from models.reddit_submission_model import RedditSubmissionModel
 from models.reddit_comment_model import RedditCommentModel
 from models.recommendation_model import RecommendationModel
@@ -27,7 +29,7 @@ class CommentQueryMethod(Enum):
 class RedditmendsBot():
 	def __init__(self, username):
 
-		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "1", "sort": "asc"}
+		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "10", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
@@ -36,6 +38,7 @@ class RedditmendsBot():
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
+		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
 
 		self.write_storage_enabled = False
 
@@ -132,20 +135,24 @@ class RedditmendsBot():
 
 				# Handle recommendations
 				for keyword in keywords["documents"][id_counter]["keyPhrases"]:
-					if(keyword in recommendation_dict):
-						keyword_sentiment = recommendation_dict[keyword]["sentiment"]
-						keyword_count = recommendation_dict[keyword]["count"]
-						recommendation_dict[keyword]["post_id"].append(submission.id)
-						recommendation_dict[keyword]["comment_id"].append(comment.id)
-						recommendation_dict[keyword]["query_word"].append(search_term)
-						recommendation_dict[keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
-						recommendation_dict[keyword]["count"] += 1
-					else:
-						recommendation_dict[keyword]["post_id"] = [submission.id]
-						recommendation_dict[keyword]["comment_id"] = [comment.id]
-						recommendation_dict[keyword]["query_word"] = [search_term]
-						recommendation_dict[keyword]["sentiment"] = sentiments["documents"][id_counter]["score"]
-						recommendation_dict[keyword]["count"] = 1
+					# Check if keyword is registered as a trademark
+					keyword_trademark = self.marker_api.fetch_trademarks(keyword)
+
+					if(keyword_trademark.count > 0):
+						if(keyword in recommendation_dict):
+							keyword_sentiment = recommendation_dict[keyword]["sentiment"]
+							keyword_count = recommendation_dict[keyword]["count"]
+							recommendation_dict[keyword]["post_id"].append(submission.id)
+							recommendation_dict[keyword]["comment_id"].append(comment.id)
+							recommendation_dict[keyword]["query_word"].append(search_term)
+							recommendation_dict[keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
+							recommendation_dict[keyword]["count"] += 1
+						else:
+							recommendation_dict[keyword]["post_id"] = [submission.id]
+							recommendation_dict[keyword]["comment_id"] = [comment.id]
+							recommendation_dict[keyword]["query_word"] = [search_term]
+							recommendation_dict[keyword]["sentiment"] = sentiments["documents"][id_counter]["score"]
+							recommendation_dict[keyword]["count"] = 1
 
 				id_counter +=1
 
