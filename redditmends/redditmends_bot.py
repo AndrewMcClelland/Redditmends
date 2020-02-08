@@ -1,5 +1,8 @@
 import praw
 import collections
+import inflect
+import operator
+import numpy as np
 from nltk.corpus import words
 from difflib import get_close_matches
 from datetime import datetime, timedelta
@@ -27,8 +30,8 @@ class CommentQueryMethod(Enum):
 	PRAW = 1
 	PUSHSHIFT = 2
 
-#TODO Match common words with each otehr (Redwing vs red wings vs red wing boots) (use difflib.get_close_matches)
-#TODO Instead of trademark (takes a while I believe), match against the english dictionary
+#TODO Get a better dictionary - Backpack and laptop are getting through
+
 class RedditmendsBot():
 	def __init__(self, username):
 
@@ -43,7 +46,9 @@ class RedditmendsBot():
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
 		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
 
+		self.inflect = inflect.engine()
 		self.english_dict = set(w.lower() for w in words.words())
+		self.english_dict.add("bifl")
 
 		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
 		self.max_similar_keywords = 10
@@ -51,7 +56,7 @@ class RedditmendsBot():
 
 		self.write_storage_enabled = False
 
-	def run(self, search_term, comment_query_method):
+	def run(self, search_term, comment_query_method, num_top_recommendations):
 		# Initializes praw reddit instance
 		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
@@ -148,8 +153,11 @@ class RedditmendsBot():
 					#TODO do we really need this trademark handler
 					# keyword_trademark = self.marker_api.fetch_trademarks(keyword)
 
+					# If it can't be pluralized/singularized, it returns a false - in that case, just make it an empty string which will NOT be in dictionary
+					keyword_plural = self.inflect.plural(keyword) if self.inflect.plural(keyword) else ""
+					keyword_singular = self.inflect.singular_noun(keyword) if self.inflect.singular_noun(keyword) else ""
 					# Ensure it's not just a standard english word
-					if(keyword not in self.english_dict):
+					if((keyword not in self.english_dict) and (keyword_plural not in self.english_dict) and (keyword_singular not in self.english_dict)):
 						similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
 						# if(keyword in recommendation_dict):
 						if(len(similar_keywords) > 0):
@@ -219,8 +227,14 @@ class RedditmendsBot():
 				recommendation_list.append(curr_recom)
 
 		# Get largest count for keywords and select all keywords that have that count
-		top_keyword_count = max(word.count for word in recommendation_list)
-		top_keywords = list(filter(lambda x: x.count == top_keyword_count, recommendation_list))
+		recommendation_list.sort(key=operator.attrgetter("count"), reverse=True)
+		top_keyword_counts = list(recommendation.count for recommendation in recommendation_list[:num_top_recommendations])
+		top_keywords = []
+		last_count = -1
+		for count in top_keyword_counts:
+			if(count != last_count):
+				top_keywords += filter(lambda x: x.count == count, recommendation_list)
+				last_count = count
 		num_unique_keywords = len(recommendation_list)
 
 		# Insert recommendations into storage table
@@ -245,11 +259,11 @@ class RedditmendsBot():
 
 		# Create result object with relevant data
 		self.result = RedditmendsResultModel()
-		self.result.parse_result_data(search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_count)
+		self.result.parse_result_data(search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_counts[0])
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
 	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
-	bot.run(search_term = "shoes", comment_query_method = CommentQueryMethod.PRAW)
+	bot.run(search_term = "backpack", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)
