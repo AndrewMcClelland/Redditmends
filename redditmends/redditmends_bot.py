@@ -1,6 +1,7 @@
 import praw
-import nltk
 import collections
+from nltk.corpus import words
+from difflib import get_close_matches
 from datetime import datetime, timedelta
 from enum import Enum
 from azure.common import AzureConflictHttpError
@@ -26,6 +27,8 @@ class CommentQueryMethod(Enum):
 	PRAW = 1
 	PUSHSHIFT = 2
 
+#TODO Match common words with each otehr (Redwing vs red wings vs red wing boots) (use difflib.get_close_matches)
+#TODO Instead of trademark (takes a while I believe), match against the english dictionary
 class RedditmendsBot():
 	def __init__(self, username):
 
@@ -39,6 +42,12 @@ class RedditmendsBot():
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
 		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
+
+		self.english_dict = set(w.lower() for w in words.words())
+
+		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
+		self.max_similar_keywords = 10
+		self.similar_keyword_cutoff = 0.7
 
 		self.write_storage_enabled = False
 
@@ -136,17 +145,25 @@ class RedditmendsBot():
 				# Handle recommendations
 				for keyword in keywords["documents"][id_counter]["keyPhrases"]:
 					# Check if keyword is registered as a trademark
-					keyword_trademark = self.marker_api.fetch_trademarks(keyword)
+					#TODO do we really need this trademark handler
+					# keyword_trademark = self.marker_api.fetch_trademarks(keyword)
 
-					if(keyword_trademark.count > 0):
-						if(keyword in recommendation_dict):
-							keyword_sentiment = recommendation_dict[keyword]["sentiment"]
-							keyword_count = recommendation_dict[keyword]["count"]
-							recommendation_dict[keyword]["post_id"].append(submission.id)
-							recommendation_dict[keyword]["comment_id"].append(comment.id)
-							recommendation_dict[keyword]["query_word"].append(search_term)
-							recommendation_dict[keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
-							recommendation_dict[keyword]["count"] += 1
+					# Ensure it's not just a standard english word
+					if(keyword not in self.english_dict):
+						similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
+						# if(keyword in recommendation_dict):
+						if(len(similar_keywords) > 0):
+							# Theoretically, this should never be more than 1 similar keyword
+							existing_similar_keyword = similar_keywords[0]
+
+							keyword_sentiment = recommendation_dict[existing_similar_keyword]["sentiment"]
+							keyword_count = recommendation_dict[existing_similar_keyword]["count"]
+
+							recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
+							recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
+							recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
+							recommendation_dict[existing_similar_keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
+							recommendation_dict[existing_similar_keyword]["count"] += 1
 						else:
 							recommendation_dict[keyword]["post_id"] = [submission.id]
 							recommendation_dict[keyword]["comment_id"] = [comment.id]
@@ -180,14 +197,26 @@ class RedditmendsBot():
 		# Create list of recommendations
 		recommendation_list = []
 		for keyword in recommendation_dict:
-			curr_recom = RecommendationModel(keyword)
-			curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
-			curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
-			curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
-			curr_recom.add_comment_id(recommendation_dict[keyword]["comment_id"])
-			curr_recom.add_count(recommendation_dict[keyword]["count"])
+			similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
+			if(len(similar_keywords) > 1): # > 1 since keyword already exists in dict so it will always match with itself
+				curr_keyword = recommendation_dict[keyword]
+				existing_keyword = similar_keywords[1] # 1 since keyword already exists in dict so it will be first one it matches with
 
-			recommendation_list.append(curr_recom)
+				recommendation_dict[existing_keyword]["sentiment"] = ((recommendation_dict[existing_keyword]["sentiment"] * recommendation_dict[existing_keyword]["count"]) + (curr_keyword["sentiment"] * curr_keyword["count"])) / (recommendation_dict[existing_keyword]["count"] + curr_keyword["count"])
+				recommendation_dict[existing_keyword]["query_word"] += curr_keyword["query_word"]
+				recommendation_dict[existing_keyword]["post_id"] += curr_keyword["post_id"]
+				recommendation_dict[existing_keyword]["comment_id"] += curr_keyword["comment_id"]
+				recommendation_dict[existing_keyword]["count"] += curr_keyword["count"]
+
+			else:
+				curr_recom = RecommendationModel(keyword)
+				curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
+				curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
+				curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
+				curr_recom.add_comment_id(recommendation_dict[keyword]["comment_id"])
+				curr_recom.add_count(recommendation_dict[keyword]["count"])
+
+				recommendation_list.append(curr_recom)
 
 		# Get largest count for keywords and select all keywords that have that count
 		top_keyword_count = max(word.count for word in recommendation_list)
