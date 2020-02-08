@@ -1,6 +1,13 @@
 import praw
 import collections
+import inflect
+import operator
+import json
+import numpy as np
+from nltk.corpus import words
+from difflib import get_close_matches
 from datetime import datetime, timedelta
+from enum import Enum
 from azure.common import AzureConflictHttpError
 from azure.common import AzureMissingResourceHttpError
 
@@ -10,32 +17,57 @@ from modules.azure_text_analytics_handler import TextAnalyticsHandler
 from modules.azure_storage_handler import AzureStorageHandler
 from modules.pushshift_handler import PushshiftHandler
 from modules.reddit_handler import RedditHandler
-from modules.reddit_praw_handler import RedditPrawHandler
+from modules.praw_handler import PrawHandler
 from modules.reddit_inbox_handler import InboxHandler
+from modules.marker_api_handler import MarkerAPIHandler
 from models.reddit_submission_model import RedditSubmissionModel
 from models.reddit_comment_model import RedditCommentModel
 from models.recommendation_model import RecommendationModel
 from models.submission_date_model import SubmissionDateModel
 from models.redditmends_result_model import RedditmendsResultModel
 
+
+class CommentQueryMethod(Enum):
+	PRAW = 1
+	PUSHSHIFT = 2
+
+#TODO Get a better dictionary - Backpack and laptop are getting through
+
 class RedditmendsBot():
 	def __init__(self, username):
 
-		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "3", "sort": "asc"}
+		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "10", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
-		self.reddit_praw = RedditPrawHandler(self.keyvault_handler)
+		self.praw = PrawHandler(self.keyvault_handler)
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
+		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
+
+		self.inflect = inflect.engine()
+
+		# Load two dictionaries
+		self.english_dict = set(w.lower() for w in words.words())
+		self.english_dict.add("bifl")
+
+		json_dict = open('.\\redditmends\\data\\english_alpha_words_dictionary.json')
+		json_dict = json_dict.read()
+		self.english_dict = json.loads(json_dict)
+		self.english_dict = set(self.english_dict.keys())
+		self.english_dict.add("bifl")
+
+		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
+		self.max_similar_keywords = 10
+		self.similar_keyword_cutoff = 0.7
 
 		self.write_storage_enabled = False
 
-	def run(self, search_term):
+	def run(self, search_term, comment_query_method, num_top_recommendations):
 		# Initializes praw reddit instance
-		self.start_time = datetime.now()
+		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
 
 		recommendation_dict = collections.defaultdict(dict)
@@ -65,15 +97,14 @@ class RedditmendsBot():
 			submission = RedditSubmissionModel()
 			submission.parse_submission_data(sub)
 
-			# Add each comment for current submission into database
-			submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
-			submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
+			# Get comments for current looped subreddit using selected query method (PRAW [Reddit API] vs Pushshift API)
+			if(comment_query_method == CommentQueryMethod.PRAW):
+				submission_comments = self.praw.get_submission_comments(submission.id)
+			else: # CommentQueryMethod.Pushshift
+				submission_comments_params = ["link_id=" + submission.id, "size=10", "fields=" + ",".join(map(str, self.comment_search_fields))]
+				submission_comments = self.pushshift.fetch_comments(params=submission_comments_params)
 
 			num_comments += len(submission_comments)
-
-			praw_comments = self.reddit_praw.get_submission_comments(submission.id)
-
-			#TODO Parse comments in a PRAW model
 
 			# Get all the comment body values and store as a list
 			texts = list(map(lambda comment: comment["body"], submission_comments))
@@ -127,31 +158,47 @@ class RedditmendsBot():
 
 				# Handle recommendations
 				for keyword in keywords["documents"][id_counter]["keyPhrases"]:
-					if(keyword in recommendation_dict):
-						keyword_sentiment = recommendation_dict[keyword]["sentiment"]
-						keyword_count = recommendation_dict[keyword]["count"]
-						recommendation_dict[keyword]["post_id"].append(submission.id)
-						recommendation_dict[keyword]["comment_id"].append(comment.id)
-						recommendation_dict[keyword]["query_word"].append(search_term)
-						recommendation_dict[keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
-						recommendation_dict[keyword]["count"] += 1
-					else:
-						recommendation_dict[keyword]["post_id"] = [submission.id]
-						recommendation_dict[keyword]["comment_id"] = [comment.id]
-						recommendation_dict[keyword]["query_word"] = [search_term]
-						recommendation_dict[keyword]["sentiment"] = sentiments["documents"][id_counter]["score"]
-						recommendation_dict[keyword]["count"] = 1
+					# Check if keyword is registered as a trademark
+					#TODO do we really need this trademark handler
+					# keyword_trademark = self.marker_api.fetch_trademarks(keyword)
+
+					# If it can't be pluralized/singularized, it returns a false - in that case, just make it an empty string which will NOT be in dictionary
+					keyword_plural = self.inflect.plural(keyword) if self.inflect.plural(keyword) else ""
+					keyword_singular = self.inflect.singular_noun(keyword) if self.inflect.singular_noun(keyword) else ""
+					# Ensure it's not just a standard english word
+					if((keyword not in self.english_dict) and (keyword_plural not in self.english_dict) and (keyword_singular not in self.english_dict)):
+						similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
+						# if(keyword in recommendation_dict):
+						if(len(similar_keywords) > 0):
+							# Theoretically, this should never be more than 1 similar keyword
+							existing_similar_keyword = similar_keywords[0]
+
+							keyword_sentiment = recommendation_dict[existing_similar_keyword]["sentiment"]
+							keyword_count = recommendation_dict[existing_similar_keyword]["count"]
+
+							recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
+							recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
+							recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
+							recommendation_dict[existing_similar_keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
+							recommendation_dict[existing_similar_keyword]["count"] += 1
+						else:
+							recommendation_dict[keyword]["post_id"] = [submission.id]
+							recommendation_dict[keyword]["comment_id"] = [comment.id]
+							recommendation_dict[keyword]["query_word"] = [search_term]
+							recommendation_dict[keyword]["sentiment"] = sentiments["documents"][id_counter]["score"]
+							recommendation_dict[keyword]["count"] = 1
 
 				id_counter +=1
 
 			# Get largest voting for comments and select all comments that have that vote
-			curr_top_comment_score = max(comment.score for comment in comment_list)
-			curr_top_comments = list(filter(lambda comment: comment.score == curr_top_comment_score, comment_list))
-			if(curr_top_comment_score > top_comment_score):
-				top_comments = curr_top_comments
-				top_comment_score = curr_top_comment_score
-			elif(curr_top_comment_score == top_comment_score):
-				top_comments.append(curr_top_comments)
+			if(len(comment_list) > 0):
+				curr_top_comment_score = max(comment.score for comment in comment_list)
+				curr_top_comments = list(filter(lambda comment: comment.score == curr_top_comment_score, comment_list))
+				if(curr_top_comment_score > top_comment_score):
+					top_comments = curr_top_comments
+					top_comment_score = curr_top_comment_score
+				elif(curr_top_comment_score == top_comment_score):
+					top_comments.append(curr_top_comments)
 
 			# Insert list of comments into storage table
 			if(self.write_storage_enabled):
@@ -167,23 +214,37 @@ class RedditmendsBot():
 		# Create list of recommendations
 		recommendation_list = []
 		for keyword in recommendation_dict:
-			curr_recom = RecommendationModel(keyword)
-			curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
-			curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
-			curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
-			curr_recom.add_comment_id(recommendation_dict[keyword]["comment_id"])
-			curr_recom.add_count(recommendation_dict[keyword]["count"])
+			similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
+			if(len(similar_keywords) > 1): # > 1 since keyword already exists in dict so it will always match with itself
+				curr_keyword = recommendation_dict[keyword]
+				existing_keyword = similar_keywords[1] # 1 since keyword already exists in dict so it will be first one it matches with
 
-			recommendation_list.append(curr_recom)
+				recommendation_dict[existing_keyword]["sentiment"] = ((recommendation_dict[existing_keyword]["sentiment"] * recommendation_dict[existing_keyword]["count"]) + (curr_keyword["sentiment"] * curr_keyword["count"])) / (recommendation_dict[existing_keyword]["count"] + curr_keyword["count"])
+				recommendation_dict[existing_keyword]["query_word"] += curr_keyword["query_word"]
+				recommendation_dict[existing_keyword]["post_id"] += curr_keyword["post_id"]
+				recommendation_dict[existing_keyword]["comment_id"] += curr_keyword["comment_id"]
+				recommendation_dict[existing_keyword]["count"] += curr_keyword["count"]
+
+			else:
+				curr_recom = RecommendationModel(keyword)
+				curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
+				curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
+				curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
+				curr_recom.add_comment_id(recommendation_dict[keyword]["comment_id"])
+				curr_recom.add_count(recommendation_dict[keyword]["count"])
+
+				recommendation_list.append(curr_recom)
 
 		# Get largest count for keywords and select all keywords that have that count
-		top_keyword_count = max(word.count for word in recommendation_list)
-		top_keywords = list(filter(lambda x: x.count == top_keyword_count, recommendation_list))
+		recommendation_list.sort(key=operator.attrgetter("count"), reverse=True)
+		top_keyword_counts = list(recommendation.count for recommendation in recommendation_list[:num_top_recommendations])
+		top_keywords = []
+		last_count = -1
+		for count in top_keyword_counts:
+			if(count != last_count):
+				top_keywords += filter(lambda x: x.count == count, recommendation_list)
+				last_count = count
 		num_unique_keywords = len(recommendation_list)
-
-		# Create result object with relevant data
-		self.result = RedditmendsResultModel()
-		self.result.parse_result_data(search_term, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_count)
 
 		# Insert recommendations into storage table
 		if(self.write_storage_enabled):
@@ -202,9 +263,16 @@ class RedditmendsBot():
 				print(error)
 				print(f"The most recent subdate object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
+		# Get runtime
+		runtime = datetime.now() - start_time
+
+		# Create result object with relevant data
+		self.result = RedditmendsResultModel()
+		self.result.parse_result_data(search_term, runtime, num_submissions, num_comments, num_unique_keywords, top_comments, top_comment_score, top_keywords, top_keyword_counts[0])
+
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
 	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
-	bot.run(search_term = "blanket")
+	bot.run(search_term = "backpack", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)
