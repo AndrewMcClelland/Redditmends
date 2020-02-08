@@ -2,6 +2,7 @@ import praw
 import collections
 import inflect
 import operator
+import json
 import numpy as np
 from nltk.corpus import words
 from difflib import get_close_matches
@@ -47,7 +48,15 @@ class RedditmendsBot():
 		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
 
 		self.inflect = inflect.engine()
+
+		# Load two dictionaries
 		self.english_dict = set(w.lower() for w in words.words())
+		self.english_dict.add("bifl")
+
+		json_dict = open('.\\redditmends\\data\\english_alpha_words_dictionary.json')
+		json_dict = json_dict.read()
+		self.english_dict = json.loads(json_dict)
+		self.english_dict = set(self.english_dict.keys())
 		self.english_dict.add("bifl")
 
 		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
