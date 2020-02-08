@@ -29,4 +29,4 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 - [ ] Front-end UI that uses same backend engine but offers clean website interface
 
 ## Acknowledgements
-Special thanks to [Watchful1's RemindMeBot](https://github.com/Watchful1/RemindMeBot) and [TylerBrockett's Alert-Bot-Reddit](https://github.com/tylerbrockett/Alert-Bot-Reddit) for the inspiration.
+Special thanks to [Watchful1's RemindMeBot](https://github.com/Watchful1/RemindMeBot) and [TylerBrockett's Alert-Bot-Reddit](https://github.com/tylerbrockett/Alert-Bot-Reddit) for the inspiration, and to [dwyl's english-words](https://github.com/dwyl/english-words) for the English dictionary json.
