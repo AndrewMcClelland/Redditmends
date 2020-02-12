@@ -26,7 +26,9 @@ Redditmends bot is a reddit bot that will parse Reddit submissions, comments, an
 - [ ] Requirements file to easily install package dependencies
 
 ### Web App
-- [ ] Front-end UI that uses same backend engine but offers clean website interface
+- [ ] Create Flask based RESTful API for Redditmends
+- [ ] Create front-end UI based on Flask API
+- [ ] Create Doxygen (or similar) API documentation
 
 ## Acknowledgements
 Special thanks to [Watchful1's RemindMeBot](https://github.com/Watchful1/RemindMeBot) and [TylerBrockett's Alert-Bot-Reddit](https://github.com/tylerbrockett/Alert-Bot-Reddit) for the inspiration, and to [dwyl's english-words](https://github.com/dwyl/english-words) for the English dictionary json.
