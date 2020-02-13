@@ -18,7 +18,7 @@ class RedditmendsResultModel():
 		top_comments_string = ""
 		top_keywords_string = ""
 		for comment in self.top_comments:
-			top_comments_string += "Comment id = {0} posted at {1} by {2}\nScore = {3} and sentiment = {4}\n'{5}'\n".format(
+			top_comments_string += "Comment id = {0} posted at {1} by {2}<br>Score = {3} and sentiment = {4}<br>'{5}'<br>".format(
 										comment.id,
 										datetime.fromtimestamp(comment.created_utc).strftime('%c'),
 										comment.author,
@@ -29,15 +29,15 @@ class RedditmendsResultModel():
 		for keyword in self.top_keywords:
 			top_keywords_string += "'{0}',".format(keyword.keyword)
 
-		return """\n\nRedditmends result for search_term: '{0}'\n
-					Runtime = \t{1}\n
-					Number of submissions parsed = \t{2}\n
-					Number of comments parsed = \t{3}\n
-					Number of unique keywords = \t{4}\n
-					Highest voted comment scores = \t{5}\n
-					Highest voted comments found = '\t{6}'\n
-					Highest common keyword count = \t{7}\n
-					Most common keywords = \t{8}\n\n""".format(
+		return """<br><br>Redditmends result for search_term: '{0}'<br>
+					Runtime = \t{1}<br>
+					Number of submissions parsed = \t{2}<br>
+					Number of comments parsed = \t{3}<br>
+					Number of unique keywords = \t{4}<br>
+					Highest voted comment scores = \t{5}<br>
+					Highest voted comments found = '\t{6}'<br>
+					Highest common keyword count = \t{7}<br>
+					Most common keywords = \t{8}<br><br>""".format(
 						self.search_term,
 						self.runtime,
 						self.num_submissions,

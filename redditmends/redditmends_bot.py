@@ -26,50 +26,50 @@ from models.recommendation_model import RecommendationModel
 from models.submission_date_model import SubmissionDateModel
 from models.redditmends_result_model import RedditmendsResultModel
 
-
 class CommentQueryMethod(Enum):
 	PRAW = 1
 	PUSHSHIFT = 2
 
-#TODO Get a better dictionary - Backpack and laptop are getting through
-
 class RedditmendsBot():
 	def __init__(self, username):
 
+		# Search related properties
 		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "10", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
+		# Handler initiation
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
 		self.praw = PrawHandler(self.keyvault_handler)
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
-		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
-
+		# self.marker_api = MarkerAPIHandler(self.keyvault_handler)
 		self.inflect = inflect.engine()
 
-		# Load two dictionaries
-		self.english_dict = set(w.lower() for w in words.words())
-		self.english_dict.add("bifl")
-
+		# Load english dictionary to run keywords against later
 		json_dict = open('.\\redditmends\\data\\english_alpha_words_dictionary.json')
 		json_dict = json_dict.read()
 		self.english_dict = json.loads(json_dict)
-		self.english_dict = set(self.english_dict.keys())
-		self.english_dict.add("bifl")
+		self.english_dict["bifl"] = 1
+
+		# Configuration properties
 
 		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
 		self.max_similar_keywords = 10
 		self.similar_keyword_cutoff = 0.7
 
+		# Flag to determine if we should be writing to Azure Storage table
 		self.write_storage_enabled = False
+
+		self.submission_fetch_delta = timedelta(weeks = 1)
 
 	def run(self, search_term, comment_query_method, num_top_recommendations):
 		# Initializes praw reddit instance
 		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
 
+		#TODO Populate this with existing search term recommendations from storage?
 		recommendation_dict = collections.defaultdict(dict)
 
 		# If another search occurred with same subreddit and search_term, get the most recent stored submission from that search and only retrieve submissions posted after that date
@@ -79,10 +79,16 @@ class RedditmendsBot():
 		# If this search is new, then just set the "after" date query to 0
 		except AzureMissingResourceHttpError as error:
 			print(error)
-			print("The mostrecentsubdate entry with subreddit =  '{0}' and title = '{1}' does not exist in the database. Setting newest created_utc to 0...".format(self.submission_search_params["subreddit"], self.submission_search_params["title"]))
+			print("The mostrecentsubdate entry with subreddit = '{0}' and title = '{1}' does not exist in the database. Setting newest created_utc to 0...".format(self.submission_search_params["subreddit"], self.submission_search_params["title"]))
 			newest_stored_sub_date = 0
 
-		submission_params = ["subreddit=" + self.submission_search_params["subreddit"], "title=" + self.submission_search_params["title"], "size=" + self.submission_search_params["size"], "sort=" + self.submission_search_params["sort"], "title=" + search_term, "after=" + str(newest_stored_sub_date), "fields=" + ",".join(map(str, self.comment_search_fields))]
+		submission_params = [	"subreddit=" + self.submission_search_params["subreddit"],
+								"title=" + self.submission_search_params["title"],
+								"size=" + self.submission_search_params["size"],
+								"sort=" + self.submission_search_params["sort"],
+								"title=" + search_term,
+								"after=" + str(newest_stored_sub_date),
+								"fields=" + ",".join(map(str, self.comment_search_fields))]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
 		num_submissions = len(submissions)
@@ -97,6 +103,7 @@ class RedditmendsBot():
 			submission = RedditSubmissionModel()
 			submission.parse_submission_data(sub)
 
+			#TODO should I always use PRAW for comments to get most up to date info?
 			# Get comments for current looped subreddit using selected query method (PRAW [Reddit API] vs Pushshift API)
 			if(comment_query_method == CommentQueryMethod.PRAW):
 				submission_comments = self.praw.get_submission_comments(submission.id)
@@ -176,12 +183,14 @@ class RedditmendsBot():
 							keyword_sentiment = recommendation_dict[existing_similar_keyword]["sentiment"]
 							keyword_count = recommendation_dict[existing_similar_keyword]["count"]
 
-							recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
-							recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
-							recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
+							if self.submission_search_params["subreddit"] not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(self.submission_search_params["subreddit"])
+							if submission.id not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
+							if comment.id not in recommendation_dict[existing_similar_keyword]["comment_id"]: recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
+							if search_term not in recommendation_dict[existing_similar_keyword]["query_word"]: recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
 							recommendation_dict[existing_similar_keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
 							recommendation_dict[existing_similar_keyword]["count"] += 1
 						else:
+							recommendation_dict[keyword]["subreddit"] = [self.submission_search_params["subreddit"]]
 							recommendation_dict[keyword]["post_id"] = [submission.id]
 							recommendation_dict[keyword]["comment_id"] = [comment.id]
 							recommendation_dict[keyword]["query_word"] = [search_term]
@@ -211,19 +220,25 @@ class RedditmendsBot():
 					print(error)
 					print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
 
+		#TODO add amazon or similar link to these products?
 		# Create list of recommendations
 		recommendation_list = []
-		for keyword in recommendation_dict:
+		# ITerating through list of dict because we are deleting a dictionary entry as we iterate over it which would cause runtime error if we were simply iterating over dict
+		for keyword in list(recommendation_dict):
 			similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
 			if(len(similar_keywords) > 1): # > 1 since keyword already exists in dict so it will always match with itself
 				curr_keyword = recommendation_dict[keyword]
 				existing_keyword = similar_keywords[1] # 1 since keyword already exists in dict so it will be first one it matches with
 
 				recommendation_dict[existing_keyword]["sentiment"] = ((recommendation_dict[existing_keyword]["sentiment"] * recommendation_dict[existing_keyword]["count"]) + (curr_keyword["sentiment"] * curr_keyword["count"])) / (recommendation_dict[existing_keyword]["count"] + curr_keyword["count"])
-				recommendation_dict[existing_keyword]["query_word"] += curr_keyword["query_word"]
-				recommendation_dict[existing_keyword]["post_id"] += curr_keyword["post_id"]
-				recommendation_dict[existing_keyword]["comment_id"] += curr_keyword["comment_id"]
+				if self.submission_search_params["subreddit"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(self.submission_search_params["subreddit"])
+				if curr_keyword["query_word"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(curr_keyword["query_word"])
+				if curr_keyword["post_id"] not in recommendation_dict[existing_keyword]["post_id"]: recommendation_dict[existing_keyword]["post_id"].append(curr_keyword["post_id"])
+				if curr_keyword["comment_id"] not in recommendation_dict[existing_keyword]["comment_id"]: recommendation_dict[existing_keyword]["comment_id"].append(curr_keyword["comment_id"])
 				recommendation_dict[existing_keyword]["count"] += curr_keyword["count"]
+
+				# Remove the keyword so we don't accidentally match with it furter down the line (causing a cyclical similarity)
+				del recommendation_dict[keyword]
 
 			else:
 				curr_recom = RecommendationModel(keyword)
@@ -254,7 +269,7 @@ class RedditmendsBot():
 				print(error)
 				print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
-		# Update 'mostrecentsubdate' entry for current subreddit/query search
+		# Update 'mostrecentsubdate' entry for current subreddit/query search (submissions are sorted in ascending order so the last one hit will be newest, so update here)
 		if(self.write_storage_enabled):
 			newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
 			try:
@@ -273,6 +288,5 @@ class RedditmendsBot():
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
-	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
 	bot.run(search_term = "backpack", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)
