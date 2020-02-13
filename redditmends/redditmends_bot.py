@@ -69,6 +69,7 @@ class RedditmendsBot():
 		start_time = datetime.now()
 		# unread_messages = InboxHandler.read_inbox(self.reddit)
 
+		#TODO Populate this with existing search term recommendations from storage?
 		recommendation_dict = collections.defaultdict(dict)
 
 		# If another search occurred with same subreddit and search_term, get the most recent stored submission from that search and only retrieve submissions posted after that date
@@ -182,12 +183,14 @@ class RedditmendsBot():
 							keyword_sentiment = recommendation_dict[existing_similar_keyword]["sentiment"]
 							keyword_count = recommendation_dict[existing_similar_keyword]["count"]
 
-							recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
-							recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
-							recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
+							if self.submission_search_params["subreddit"] not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(self.submission_search_params["subreddit"])
+							if submission.id not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
+							if comment.id not in recommendation_dict[existing_similar_keyword]["comment_id"]: recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
+							if search_term not in recommendation_dict[existing_similar_keyword]["query_word"]: recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
 							recommendation_dict[existing_similar_keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
 							recommendation_dict[existing_similar_keyword]["count"] += 1
 						else:
+							recommendation_dict[keyword]["subreddit"] = [self.submission_search_params["subreddit"]]
 							recommendation_dict[keyword]["post_id"] = [submission.id]
 							recommendation_dict[keyword]["comment_id"] = [comment.id]
 							recommendation_dict[keyword]["query_word"] = [search_term]
@@ -220,17 +223,22 @@ class RedditmendsBot():
 		#TODO add amazon or similar link to these products?
 		# Create list of recommendations
 		recommendation_list = []
-		for keyword in recommendation_dict:
+		# ITerating through list of dict because we are deleting a dictionary entry as we iterate over it which would cause runtime error if we were simply iterating over dict
+		for keyword in list(recommendation_dict):
 			similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
 			if(len(similar_keywords) > 1): # > 1 since keyword already exists in dict so it will always match with itself
 				curr_keyword = recommendation_dict[keyword]
 				existing_keyword = similar_keywords[1] # 1 since keyword already exists in dict so it will be first one it matches with
 
 				recommendation_dict[existing_keyword]["sentiment"] = ((recommendation_dict[existing_keyword]["sentiment"] * recommendation_dict[existing_keyword]["count"]) + (curr_keyword["sentiment"] * curr_keyword["count"])) / (recommendation_dict[existing_keyword]["count"] + curr_keyword["count"])
-				recommendation_dict[existing_keyword]["query_word"] += curr_keyword["query_word"]
-				recommendation_dict[existing_keyword]["post_id"] += curr_keyword["post_id"]
-				recommendation_dict[existing_keyword]["comment_id"] += curr_keyword["comment_id"]
+				if self.submission_search_params["subreddit"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(self.submission_search_params["subreddit"])
+				if curr_keyword["query_word"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(curr_keyword["query_word"])
+				if curr_keyword["post_id"] not in recommendation_dict[existing_keyword]["post_id"]: recommendation_dict[existing_keyword]["post_id"].append(curr_keyword["post_id"])
+				if curr_keyword["comment_id"] not in recommendation_dict[existing_keyword]["comment_id"]: recommendation_dict[existing_keyword]["comment_id"].append(curr_keyword["comment_id"])
 				recommendation_dict[existing_keyword]["count"] += curr_keyword["count"]
+
+				# Remove the keyword so we don't accidentally match with it furter down the line (causing a cyclical similarity)
+				del recommendation_dict[keyword]
 
 			else:
 				curr_recom = RecommendationModel(keyword)
@@ -261,7 +269,7 @@ class RedditmendsBot():
 				print(error)
 				print(f"The recommendation object is formatted incorrectly and was not inserted. One of the parameters is not an int, str, bool or datetime, or defined custom EntityProperty. Continuing...")
 
-		# Update 'mostrecentsubdate' entry for current subreddit/query search
+		# Update 'mostrecentsubdate' entry for current subreddit/query search (submissions are sorted in ascending order so the last one hit will be newest, so update here)
 		if(self.write_storage_enabled):
 			newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
 			try:

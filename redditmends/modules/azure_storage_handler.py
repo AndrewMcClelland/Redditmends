@@ -65,6 +65,7 @@ class AzureStorageHandler():
 
 			recommendation.PartitionKey = entry.keyword
 			recommendation.RowKey = entry.keyword
+			recommendation.subreddit = ','.join(map(str, entry.subreddit))
 			recommendation.post_id = ','.join(map(str, entry.post_id))
 			recommendation.comment_id = ','.join(map(str, entry.comment_id))
 			recommendation.query_word = ','.join(map(str, entry.query_word))
@@ -77,8 +78,10 @@ class AzureStorageHandler():
 				print(error)
 				print("The recommendation entry with keyword =  '{0}' already exists in the database. Updating...".format(recommendation.PartitionKey))
 
+				#TODO Have to relook how I handle this - might pull down existing recommendation entries and store thim in redditmends recommendation dict initially, then I just hard replace it with new entity (not append since that would be redundant at that point)
 				# Update existing entry with duplicate entry attributes
 				existing_recommendation = AzureStorageHandler.get_entry(self, "recommendations", recommendation.PartitionKey, recommendation.RowKey)
+				recommendation.subreddit += "," + existing_recommendation["subreddit"]
 				recommendation.post_id += "," + existing_recommendation["post_id"]
 				recommendation.comment_id += "," + existing_recommendation["comment_id"]
 				recommendation.query_word += "," + existing_recommendation["query_word"]
