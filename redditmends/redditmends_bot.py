@@ -26,44 +26,43 @@ from models.recommendation_model import RecommendationModel
 from models.submission_date_model import SubmissionDateModel
 from models.redditmends_result_model import RedditmendsResultModel
 
-
 class CommentQueryMethod(Enum):
 	PRAW = 1
 	PUSHSHIFT = 2
 
-#TODO Get a better dictionary - Backpack and laptop are getting through
-
 class RedditmendsBot():
 	def __init__(self, username):
 
+		# Search related properties
 		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "10", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
+		# Handler initiation
 		self.keyvault_handler = KeyVaultHandler("https://redditmends-kv.vault.azure.net/")
 		self.praw = PrawHandler(self.keyvault_handler)
 		self.pushshift = PushshiftHandler()
 		self.storage_account = AzureStorageHandler(self.keyvault_handler)
 		self.text_analytics = TextAnalyticsHandler(self.keyvault_handler)
-		self.marker_api = MarkerAPIHandler(self.keyvault_handler)
-
+		# self.marker_api = MarkerAPIHandler(self.keyvault_handler)
 		self.inflect = inflect.engine()
 
-		# Load two dictionaries
-		self.english_dict = set(w.lower() for w in words.words())
-		self.english_dict.add("bifl")
-
+		# Load english dictionary to run keywords against later
 		json_dict = open('.\\redditmends\\data\\english_alpha_words_dictionary.json')
 		json_dict = json_dict.read()
 		self.english_dict = json.loads(json_dict)
-		self.english_dict = set(self.english_dict.keys())
-		self.english_dict.add("bifl")
+		self.english_dict["bifl"] = 1
+
+		# Configuration properties
 
 		# Trial and error for similar keywords; theoretically, max similar keywords never exceeds 1
 		self.max_similar_keywords = 10
 		self.similar_keyword_cutoff = 0.7
 
+		# Flag to determine if we should be writing to Azure Storage table
 		self.write_storage_enabled = False
+
+		self.submission_fetch_delta = timedelta(weeks = 1)
 
 	def run(self, search_term, comment_query_method, num_top_recommendations):
 		# Initializes praw reddit instance
@@ -79,10 +78,16 @@ class RedditmendsBot():
 		# If this search is new, then just set the "after" date query to 0
 		except AzureMissingResourceHttpError as error:
 			print(error)
-			print("The mostrecentsubdate entry with subreddit =  '{0}' and title = '{1}' does not exist in the database. Setting newest created_utc to 0...".format(self.submission_search_params["subreddit"], self.submission_search_params["title"]))
+			print("The mostrecentsubdate entry with subreddit = '{0}' and title = '{1}' does not exist in the database. Setting newest created_utc to 0...".format(self.submission_search_params["subreddit"], self.submission_search_params["title"]))
 			newest_stored_sub_date = 0
 
-		submission_params = ["subreddit=" + self.submission_search_params["subreddit"], "title=" + self.submission_search_params["title"], "size=" + self.submission_search_params["size"], "sort=" + self.submission_search_params["sort"], "title=" + search_term, "after=" + str(newest_stored_sub_date), "fields=" + ",".join(map(str, self.comment_search_fields))]
+		submission_params = [	"subreddit=" + self.submission_search_params["subreddit"],
+								"title=" + self.submission_search_params["title"],
+								"size=" + self.submission_search_params["size"],
+								"sort=" + self.submission_search_params["sort"],
+								"title=" + search_term,
+								"after=" + str(newest_stored_sub_date),
+								"fields=" + ",".join(map(str, self.comment_search_fields))]
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
 		num_submissions = len(submissions)
@@ -97,6 +102,7 @@ class RedditmendsBot():
 			submission = RedditSubmissionModel()
 			submission.parse_submission_data(sub)
 
+			#TODO should I always use PRAW for comments to get most up to date info?
 			# Get comments for current looped subreddit using selected query method (PRAW [Reddit API] vs Pushshift API)
 			if(comment_query_method == CommentQueryMethod.PRAW):
 				submission_comments = self.praw.get_submission_comments(submission.id)
@@ -211,6 +217,7 @@ class RedditmendsBot():
 					print(error)
 					print(f"The comment entry with id =  %s already exists in the database. Continuing..." % comment.id)
 
+		#TODO add amazon or similar link to these products?
 		# Create list of recommendations
 		recommendation_list = []
 		for keyword in recommendation_dict:
@@ -273,6 +280,5 @@ class RedditmendsBot():
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
 	#TODO: allow entry of parameters with spaces
-	# bot.run(["subreddit=BuyItForLife", "title=[Request]", "num_comments=>1", "limit=10"]) # use ids here, seems to work for submissions - https://www.reddit.com/r/pushshift/comments/b3gvye/query_for_a_given_post_id/
 	bot.run(search_term = "backpack", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)
