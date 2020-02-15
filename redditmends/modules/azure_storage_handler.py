@@ -43,11 +43,9 @@ class AzureStorageHandler():
 			comment.RowKey = entry.id
 			comment.author = entry.author
 			comment.body = entry.body
-			comment.num_comments = entry.num_comments
 			comment.created_utc = entry.created_utc
 			comment.parent_id = entry.parent_id
 			comment.score = entry.score
-			comment.flair = entry.flair
 			comment.subreddit = entry.subreddit
 			comment.subreddit_id = entry.subreddit_id
 			comment.total_awards_received = entry.total_awards_received
@@ -72,6 +70,7 @@ class AzureStorageHandler():
 			recommendation.sentiment = entry.sentiment
 			recommendation.count = entry.count
 
+			#TODO Need to look at how this is handled (insert vs update with an append...)
 			try:
 				self.table_service.insert_entity('recommendations', recommendation)
 			except AzureConflictHttpError as error:
@@ -106,6 +105,9 @@ class AzureStorageHandler():
 
 	def get_entry(self, table, partition_key, row_key):
 		return self.table_service.get_entity(table, partition_key, row_key)
+
+	def filter_entries(self, table, filter_string):
+		return self.table_service.query_entities(table, filter_string)
 
 	def update_entry(self, table, entity):
 		return self.table_service.update_entity(table, entity)
