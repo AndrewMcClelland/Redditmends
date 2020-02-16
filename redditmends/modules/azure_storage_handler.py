@@ -61,12 +61,12 @@ class AzureStorageHandler():
 		for entry in entries:
 			recommendation = Entity()
 
-			recommendation.PartitionKey = entry.keyword
+			recommendation.PartitionKey = "{0}_{1}".format(entry.subreddit, entry.query_word)
 			recommendation.RowKey = entry.keyword
-			recommendation.subreddit = ','.join(map(str, entry.subreddit))
+			recommendation.subreddit = entry.subreddit
+			recommendation.query_word = entry.query_word
 			recommendation.post_id = ','.join(map(str, entry.post_id))
 			recommendation.comment_id = ','.join(map(str, entry.comment_id))
-			recommendation.query_word = ','.join(map(str, entry.query_word))
 			recommendation.sentiment = entry.sentiment
 			recommendation.count = entry.count
 
@@ -74,19 +74,9 @@ class AzureStorageHandler():
 			try:
 				self.table_service.insert_entity('recommendations', recommendation)
 			except AzureConflictHttpError as error:
-				print(error)
-				print("The recommendation entry with keyword =  '{0}' already exists in the database. Updating...".format(recommendation.PartitionKey))
-
-				#TODO Have to relook how I handle this - might pull down existing recommendation entries and store thim in redditmends recommendation dict initially, then I just hard replace it with new entity (not append since that would be redundant at that point)
-				# Update existing entry with duplicate entry attributes
-				existing_recommendation = AzureStorageHandler.get_entry(self, "recommendations", recommendation.PartitionKey, recommendation.RowKey)
-				recommendation.subreddit += "," + existing_recommendation["subreddit"]
-				recommendation.post_id += "," + existing_recommendation["post_id"]
-				recommendation.comment_id += "," + existing_recommendation["comment_id"]
-				recommendation.query_word += "," + existing_recommendation["query_word"]
-				recommendation.sentiment = ((float(existing_recommendation["sentiment"]) * int(existing_recommendation["count"])) + (recommendation.sentiment * recommendation.count)) / (int(existing_recommendation["count"]) + recommendation.count)
-				recommendation.count = int(recommendation.count) + int(existing_recommendation["count"])
-
+				# print(error)
+				subreddit_query_word = recommendation.PartitionKey.split('_')
+				print("The recommendation entry with subreddit = '{0}', search term = '{1}', and keyword = '{2}' already exists in the database. Updating it...".format(subreddit_query_word[0], subreddit_query_word[1], recommendation.RowKey))
 				self.table_service.update_entity('recommendations', recommendation)
 
 	def insert_sub_date_entry(self, entry):
