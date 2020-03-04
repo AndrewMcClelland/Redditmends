@@ -297,6 +297,5 @@ class RedditmendsBot():
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
-	#TODO: allow entry of parameters with spaces
 	bot.run(search_term = "blanket", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)
