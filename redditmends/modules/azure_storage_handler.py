@@ -43,11 +43,9 @@ class AzureStorageHandler():
 			comment.RowKey = entry.id
 			comment.author = entry.author
 			comment.body = entry.body
-			comment.num_comments = entry.num_comments
 			comment.created_utc = entry.created_utc
 			comment.parent_id = entry.parent_id
 			comment.score = entry.score
-			comment.flair = entry.flair
 			comment.subreddit = entry.subreddit
 			comment.subreddit_id = entry.subreddit_id
 			comment.total_awards_received = entry.total_awards_received
@@ -63,31 +61,21 @@ class AzureStorageHandler():
 		for entry in entries:
 			recommendation = Entity()
 
-			recommendation.PartitionKey = entry.keyword
+			recommendation.PartitionKey = "{0}_{1}".format(entry.subreddit, entry.query_word)
 			recommendation.RowKey = entry.keyword
-			recommendation.subreddit = ','.join(map(str, entry.subreddit))
+			recommendation.subreddit = entry.subreddit
+			recommendation.query_word = entry.query_word
 			recommendation.post_id = ','.join(map(str, entry.post_id))
 			recommendation.comment_id = ','.join(map(str, entry.comment_id))
-			recommendation.query_word = ','.join(map(str, entry.query_word))
 			recommendation.sentiment = entry.sentiment
 			recommendation.count = entry.count
 
 			try:
 				self.table_service.insert_entity('recommendations', recommendation)
 			except AzureConflictHttpError as error:
-				print(error)
-				print("The recommendation entry with keyword =  '{0}' already exists in the database. Updating...".format(recommendation.PartitionKey))
-
-				#TODO Have to relook how I handle this - might pull down existing recommendation entries and store thim in redditmends recommendation dict initially, then I just hard replace it with new entity (not append since that would be redundant at that point)
-				# Update existing entry with duplicate entry attributes
-				existing_recommendation = AzureStorageHandler.get_entry(self, "recommendations", recommendation.PartitionKey, recommendation.RowKey)
-				recommendation.subreddit += "," + existing_recommendation["subreddit"]
-				recommendation.post_id += "," + existing_recommendation["post_id"]
-				recommendation.comment_id += "," + existing_recommendation["comment_id"]
-				recommendation.query_word += "," + existing_recommendation["query_word"]
-				recommendation.sentiment = ((float(existing_recommendation["sentiment"]) * int(existing_recommendation["count"])) + (recommendation.sentiment * recommendation.count)) / (int(existing_recommendation["count"]) + recommendation.count)
-				recommendation.count = int(recommendation.count) + int(existing_recommendation["count"])
-
+				# print(error)
+				subreddit_query_word = recommendation.PartitionKey.split('_')
+				print("The recommendation entry with subreddit = '{0}', search term = '{1}', and keyword = '{2}' already exists in the database. Updating it...".format(subreddit_query_word[0], subreddit_query_word[1], recommendation.RowKey))
 				self.table_service.update_entity('recommendations', recommendation)
 
 	def insert_sub_date_entry(self, entry):
@@ -106,6 +94,9 @@ class AzureStorageHandler():
 
 	def get_entry(self, table, partition_key, row_key):
 		return self.table_service.get_entity(table, partition_key, row_key)
+
+	def filter_entries(self, table, filter_string):
+		return self.table_service.query_entities(table, filter_string)
 
 	def update_entry(self, table, entity):
 		return self.table_service.update_entity(table, entity)

@@ -34,7 +34,7 @@ class RedditmendsBot():
 	def __init__(self, username):
 
 		# Search related properties
-		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "10", "sort": "asc"}
+		self.submission_search_params = {"subreddit": "BuyItForLife", "title": "[Request]", "size": "3", "sort": "asc"}
 		self.submission_search_fields = ["author", "created_utc", "id", "link_flair_text", "subreddit", "title", "selftext"]
 		self.comment_search_fields = ["author", "body", "created_utc", "link_id", "id", "num_comments", "parent_id", "score", "link_flair_text", "subreddit", "subreddit_id", "total_awards_received"]
 
@@ -60,21 +60,30 @@ class RedditmendsBot():
 		self.similar_keyword_cutoff = 0.7
 
 		# Flag to determine if we should be writing to Azure Storage table
-		self.write_storage_enabled = False
+		self.write_storage_enabled = True
 
 		self.submission_fetch_delta = timedelta(weeks = 1)
 
 	def run(self, search_term, comment_query_method, num_top_recommendations):
 		# Initializes praw reddit instance
 		start_time = datetime.now()
-		# unread_messages = InboxHandler.read_inbox(self.reddit)
 
-		#TODO Populate this with existing search term recommendations from storage?
+		# unread_messages = InboxHandler.read_inbox(self.reddit)
 		recommendation_dict = collections.defaultdict(dict)
+		existing_keywords = self.storage_account.filter_entries(table = "recommendations", filter_string = "PartitionKey eq '{0}_{1}'".format(self.submission_search_params["subreddit"], search_term))
+
+		for existing in existing_keywords.items:
+			keyword = existing["RowKey"]
+			recommendation_dict[keyword]["subreddit"] = existing["subreddit"]
+			recommendation_dict[keyword]["post_id"] = [existing["post_id"]]
+			recommendation_dict[keyword]["comment_id"] = [existing["comment_id"]]
+			recommendation_dict[keyword]["query_word"] = existing["query_word"]
+			recommendation_dict[keyword]["sentiment"] = existing["sentiment"]
+			recommendation_dict[keyword]["count"] = existing["count"]
 
 		# If another search occurred with same subreddit and search_term, get the most recent stored submission from that search and only retrieve submissions posted after that date
 		try:
-			newest_stored_sub_date = self.storage_account.get_entry("mostrecentsubdate", partition_key=self.submission_search_params["subreddit"], row_key=self.submission_search_params["title"])
+			newest_stored_sub_date = self.storage_account.get_entry("mostrecentsubdate", partition_key=self.submission_search_params["subreddit"], row_key=search_term)
 			newest_stored_sub_date = newest_stored_sub_date["created_utc"]
 		# If this search is new, then just set the "after" date query to 0
 		except AzureMissingResourceHttpError as error:
@@ -183,17 +192,17 @@ class RedditmendsBot():
 							keyword_sentiment = recommendation_dict[existing_similar_keyword]["sentiment"]
 							keyword_count = recommendation_dict[existing_similar_keyword]["count"]
 
-							if self.submission_search_params["subreddit"] not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(self.submission_search_params["subreddit"])
+							# if self.submission_search_params["subreddit"] not in recommendation_dict[existing_similar_keyword]["sentiment"]: recommendation_dict[existing_similar_keyword]["sentiment"].append(self.submission_search_params["subreddit"])
 							if submission.id not in recommendation_dict[existing_similar_keyword]["post_id"]: recommendation_dict[existing_similar_keyword]["post_id"].append(submission.id)
 							if comment.id not in recommendation_dict[existing_similar_keyword]["comment_id"]: recommendation_dict[existing_similar_keyword]["comment_id"].append(comment.id)
-							if search_term not in recommendation_dict[existing_similar_keyword]["query_word"]: recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
+							# if search_term not in recommendation_dict[existing_similar_keyword]["query_word"]: recommendation_dict[existing_similar_keyword]["query_word"].append(search_term)
 							recommendation_dict[existing_similar_keyword]["sentiment"] = ((keyword_sentiment * keyword_count) + sentiments["documents"][id_counter]["score"]) / (keyword_count + 1)
 							recommendation_dict[existing_similar_keyword]["count"] += 1
 						else:
-							recommendation_dict[keyword]["subreddit"] = [self.submission_search_params["subreddit"]]
+							recommendation_dict[keyword]["subreddit"] = self.submission_search_params["subreddit"]
 							recommendation_dict[keyword]["post_id"] = [submission.id]
 							recommendation_dict[keyword]["comment_id"] = [comment.id]
-							recommendation_dict[keyword]["query_word"] = [search_term]
+							recommendation_dict[keyword]["query_word"] = search_term
 							recommendation_dict[keyword]["sentiment"] = sentiments["documents"][id_counter]["score"]
 							recommendation_dict[keyword]["count"] = 1
 
@@ -231,8 +240,8 @@ class RedditmendsBot():
 				existing_keyword = similar_keywords[1] # 1 since keyword already exists in dict so it will be first one it matches with
 
 				recommendation_dict[existing_keyword]["sentiment"] = ((recommendation_dict[existing_keyword]["sentiment"] * recommendation_dict[existing_keyword]["count"]) + (curr_keyword["sentiment"] * curr_keyword["count"])) / (recommendation_dict[existing_keyword]["count"] + curr_keyword["count"])
-				if self.submission_search_params["subreddit"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(self.submission_search_params["subreddit"])
-				if curr_keyword["query_word"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(curr_keyword["query_word"])
+				# if self.submission_search_params["subreddit"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(self.submission_search_params["subreddit"])
+				# if curr_keyword["query_word"] not in recommendation_dict[existing_keyword]["query_word"] : recommendation_dict[existing_keyword]["query_word"].append(curr_keyword["query_word"])
 				if curr_keyword["post_id"] not in recommendation_dict[existing_keyword]["post_id"]: recommendation_dict[existing_keyword]["post_id"].append(curr_keyword["post_id"])
 				if curr_keyword["comment_id"] not in recommendation_dict[existing_keyword]["comment_id"]: recommendation_dict[existing_keyword]["comment_id"].append(curr_keyword["comment_id"])
 				recommendation_dict[existing_keyword]["count"] += curr_keyword["count"]
@@ -242,6 +251,7 @@ class RedditmendsBot():
 
 			else:
 				curr_recom = RecommendationModel(keyword)
+				curr_recom.add_subreddit(recommendation_dict[keyword]["subreddit"])
 				curr_recom.add_sentiment(recommendation_dict[keyword]["sentiment"])
 				curr_recom.add_query_keyword(recommendation_dict[keyword]["query_word"])
 				curr_recom.add_post_id(recommendation_dict[keyword]["post_id"])
@@ -271,7 +281,7 @@ class RedditmendsBot():
 
 		# Update 'mostrecentsubdate' entry for current subreddit/query search (submissions are sorted in ascending order so the last one hit will be newest, so update here)
 		if(self.write_storage_enabled):
-			newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], self.submission_search_params["title"], submission.created_utc, submission.id)
+			newest_sub_date = SubmissionDateModel(self.submission_search_params["subreddit"], search_term, submission.created_utc, submission.id)
 			try:
 				self.storage_account.insert_sub_date_entry(newest_sub_date)
 			except TypeError as error:
@@ -287,6 +297,5 @@ class RedditmendsBot():
 
 if __name__ == "__main__":
 	bot = RedditmendsBot("redditmends_bot")
-	#TODO: allow entry of parameters with spaces
-	bot.run(search_term = "backpack", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
+	bot.run(search_term = "blanket", comment_query_method = CommentQueryMethod.PRAW, num_top_recommendations = 5)
 	print(bot.result)

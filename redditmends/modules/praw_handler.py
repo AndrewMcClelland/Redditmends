@@ -32,7 +32,8 @@ class PrawHandler():
 
 	def get_submission_comments(self, submission_id):
 		result = []
-		comments = self.reddit.submission(id = submission_id).comments
+		# Flatten comment tree into a list of all comments (including nested replies)
+		comments = (self.reddit.submission(id = submission_id).comments).list()
 		for comment in comments:
 			comment_dict = collections.defaultdict(dict)
 			comment_dict["author"] = comment.author.name if (comment.author != None and comment.author.name != None) else None
