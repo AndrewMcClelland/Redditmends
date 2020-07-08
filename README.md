@@ -5,18 +5,24 @@ A product recommendation engine that uses ML models on real Reddit reviews, usin
 Redditmends bot is a reddit bot that will parse Reddit submissions, comments, and private messages for users requesting a reccomendation for a certain product and return reccomendations using ML models based on real reddit data.
 
 ## To-Do
-### Reddit Manager
+### Core
 - [x] ~~Setup connection to PRAW~~
 - [x] ~~Implement functionality for calling [pushshift.io] API~~
 - [ ] RSS reading for subreddits
 - [ ] Parse bot inbox for private message reccomendation requests
 - [ ] Send message and comment replies with recommendations
 
+### WebApp Crawler
+- [ ] Create Azure WebApp to crawl Subreddits on a TimeTrigger basis to store recommendations and associated keywords in storage table (information fetch from Reddit will be independent from client side calls now)
+
 ### Database
 - [x] ~~Setup database to store reddit data that is fed into ML model (Azure Storage Table)~~
 
 ### ML Model
 - [x] ~~Utilize Azure Cognitive services to extract comments for keywords, sentiment analysis, and identify entities~~
+
+### DevOps
+- [ ] Create CI/CD YAML pipeline w/ ARM templates to automatically build, test, and deploy components and Azure resources
 
 ### Add-Ons
 - [x] ~~Implement Azure Keyvault to store and access secrets~~
