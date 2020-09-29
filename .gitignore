@@ -126,9 +126,9 @@ yarn-error.log*
 # mypy
 .mypy_cache/
 
-redditmends/accounts/account_info.py
-
 .vscode/
+node_modules/
 
 # Redditmends stuff
 redditmends/accounts/azure_service_principal.py
+redditmends/accounts/account_info.py
