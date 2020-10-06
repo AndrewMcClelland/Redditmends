@@ -4,6 +4,16 @@ A product recommendation engine that uses ML models on real Reddit reviews, usin
 ## Purpose
 Redditmends bot is a reddit bot that will parse Reddit submissions, comments, and private messages for users requesting a reccomendation for a certain product and return reccomendations using ML models based on real reddit data.
 
+## Installation
+Redditmends uses `virtualenv` and `requirements.txt` file to create a virtual Python environment and install all required dependencies within that environment.
+1. `git clone https://github.com/AndrewMcClelland/Redditmends.git`
+2. `cd Redditmends`
+3. Create and activate your `virtualenv` environment
+    a) Ensure you have `virtualenv` installed: `pip install -user virtualenv`
+    b) Create your `virtualenv` environment: `virtualenv <YOUR_ENV_NAME>
+    c) Activate your new environment: '.\path\to\your\env\Scripts\activate`
+4. Install Python packages: `pip install -r requirements.txt`
+
 ## To-Do
 ### Reddit Manager
 - [x] ~~Setup connection to PRAW~~
