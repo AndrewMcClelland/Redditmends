@@ -1,0 +1,9 @@
+praw
+numpy
+nltk
+
+# Azure SDKs
+azure-common
+azure-keyvault
+azure-mgmt-resource
+azure-mgmt-cosmosdb
