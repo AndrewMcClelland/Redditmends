@@ -1,4 +1,5 @@
 praw
+inflect
 numpy
 nltk
 
@@ -6,4 +7,4 @@ nltk
 azure-common
 azure-keyvault
 azure-mgmt-resource
-azure-mgmt-cosmosdb
+azure-cosmosdb-table
