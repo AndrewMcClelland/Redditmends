@@ -98,6 +98,8 @@ class RedditmendsBot():
 								"title=" + search_term,
 								"after=" + str(newest_stored_sub_date),
 								"fields=" + ",".join(map(str, self.comment_search_fields))]
+
+		#TODO: SHOULD I USE GOOGLE SEARCH TO QUERY THESE??? since google search with "site:reddit.com" is pretty accurate
 		submissions = self.pushshift.fetch_submissions(params=submission_params)
 
 		num_submissions = len(submissions)
@@ -181,6 +183,8 @@ class RedditmendsBot():
 					# If it can't be pluralized/singularized, it returns a false - in that case, just make it an empty string which will NOT be in dictionary
 					keyword_plural = self.inflect.plural(keyword) if self.inflect.plural(keyword) else ""
 					keyword_singular = self.inflect.singular_noun(keyword) if self.inflect.singular_noun(keyword) else ""
+
+					#TODO: Do i really want to exclude english words? What if I want recommendation of spiked vs spikeless golf shoes?
 					# Ensure it's not just a standard english word
 					if((keyword not in self.english_dict) and (keyword_plural not in self.english_dict) and (keyword_singular not in self.english_dict)):
 						similar_keywords = get_close_matches(keyword, recommendation_dict, self.max_similar_keywords, self.similar_keyword_cutoff)
