@@ -1,5 +1,5 @@
 from azure.keyvault.secrets import SecretClient
-from azure.common.credentials import ServicePrincipalCredentials
+from azure.identity import ClientSecretCredential
 
 from accounts.azure_service_principal import SERVICE_PRINCIPALS
 
@@ -7,17 +7,14 @@ from accounts.azure_service_principal import SERVICE_PRINCIPALS
 class KeyVaultHandler():
     def __init__(self, vault_url):
 
-        credentials = ServicePrincipalCredentials(
+        credentials = ClientSecretCredential(
             client_id=SERVICE_PRINCIPALS["redditmends-app"]["clientID"],
-            secret=SERVICE_PRINCIPALS["redditmends-app"]["secret"],
-            tenant=SERVICE_PRINCIPALS["redditmends-app"]["tenantID"]
+            client_secret=SERVICE_PRINCIPALS["redditmends-app"]["secret"],
+            tenant_id=SERVICE_PRINCIPALS["redditmends-app"]["tenantID"]
         )
 
-        self.client = KeyVaultClient(credentials)
-        self.client = SecretClient
-        self.vault_url = vault_url
+        self.client = SecretClient(vault_url, credentials)
 
-    def get_keyvault_secret(self, secret_id):
-        secret_bundle = self.client.get_secret(
-            self.vault_url, secret_id, secret_version="")
+    def get_keyvault_secret(self, secret_name):
+        secret_bundle = self.client.get_secret(secret_name)
         return secret_bundle.value
