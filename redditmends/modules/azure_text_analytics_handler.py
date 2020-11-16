@@ -40,6 +40,23 @@ class TextAnalyticsHandler():
 
 		return self.__send_text_analytics_request(api_url, documents)
 
+	def get_opinion(self, texts):
+		api_url = self.endpoint + "/text/analytics/v3.1-preview.2/sentiment?opinionMining=true"
+
+		documents = {"documents": []}
+		count = 0
+		for text in texts:
+			text_id = str(count)
+			text_string = text
+			# language = text["detectedLanguages"][0]["iso6391Name"]
+			language = "en"
+			doc = {"id": f"{text_id}", "language": f"{language}", "text": f"{text_string}"}
+			documents["documents"].append(doc)
+
+			count += 1
+
+		return self.__send_text_analytics_request(api_url, documents)
+
 	def get_key_phrases(self, texts):
 		api_url = self.endpoint + "/text/analytics/v2.1/keyphrases"
 
